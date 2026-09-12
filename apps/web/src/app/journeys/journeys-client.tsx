@@ -90,39 +90,46 @@ function JourneysContent() {
 
   return (
     <>
-      <section className="journey-website" aria-label="Website">
-        <div className="journey-website-input">
-          <span className="journey-website-icon" aria-hidden="true">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <circle cx="12" cy="12" r="9" />
-              <ellipse cx="12" cy="12" rx="4" ry="9" />
-              <path d="M3 12h18" />
-            </svg>
-          </span>
-          <input
-            type="url"
-            aria-label="Website URL"
-            placeholder="Enter a website URL"
-            value={websiteUrl}
-            onChange={(event) => setWebsiteUrl(event.target.value)}
-            autoComplete="url"
-            spellCheck={false}
-          />
+      {/* Three full-height scroll-snap steps — website URL, persona shelf, journey experience.
+          scroll-snap-type: y mandatory (see .journey-steps in components.css) means scrolling
+          past a step's threshold jumps cleanly to the next one; there is no partial/in-between
+          resting state, unlike a scrubbed scroll animation. Native browser behavior, no JS
+          scroll-position tracking involved. */}
+      <div className="journey-steps">
+        <section className="journey-step journey-website" aria-label="Website">
+          <div className="journey-website-input">
+            <span className="journey-website-icon" aria-hidden="true">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <ellipse cx="12" cy="12" rx="4" ry="9" />
+                <path d="M3 12h18" />
+              </svg>
+            </span>
+            <input
+              type="url"
+              aria-label="Website URL"
+              placeholder="Enter a website URL"
+              value={websiteUrl}
+              onChange={(event) => setWebsiteUrl(event.target.value)}
+              autoComplete="url"
+              spellCheck={false}
+            />
+          </div>
+        </section>
+        <div className="journey-step perspective-panel">
+          <PersonaShelfSection onOpenLibrary={openLibrary} attachedPersonaIds={attachedPersonaIds} />
         </div>
-      </section>
-      <div className="perspective-panel">
-        <PersonaShelfSection onOpenLibrary={openLibrary} attachedPersonaIds={attachedPersonaIds} />
-      </div>
-      <div className="journey-experience">
-        <JourneyViewSwitch mode={mode} onChange={setMode} />
-        {mode === 'live' ? <LiveView onOpenFinding={openFinding} /> : <OverviewAtlas />}
+        <div className="journey-step journey-experience">
+          <JourneyViewSwitch mode={mode} onChange={setMode} />
+          {mode === 'live' ? <LiveView onOpenFinding={openFinding} /> : <OverviewAtlas />}
+        </div>
       </div>
       <FindingDrawer
         open={findingOpen !== null}

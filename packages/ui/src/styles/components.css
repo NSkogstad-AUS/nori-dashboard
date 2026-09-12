@@ -688,6 +688,56 @@ main {
   outline-offset: 2px;
 }
 
+/* ---------- Journey steps (scroll-snap) ---------- */
+
+/* Wraps the website-URL, persona-shelf, and journey-experience sections as three full-height
+   scroll-snap steps. scroll-snap-type: y mandatory plus scroll-snap-align: start on each step
+   means scrolling past a step's threshold always lands exactly on the next step's boundary —
+   there is no partial/in-between resting state, unlike a scrubbed/pinned scroll animation.
+   Native browser behavior, no JS scroll-position tracking involved. */
+.journey-steps {
+  height: calc(100svh - 220px);
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  /* Scrolling/snapping still works with the browser's native scrollbar hidden — this only
+     affects the visual track, not scroll or keyboard/wheel/touch behavior. */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+
+.journey-steps::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.journey-step {
+  height: 100%;
+  min-height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* A step's own content (an expanded overview card, the live-view transmission panel) can
+     exceed one viewport's height — let it scroll internally rather than clip, without breaking
+     the outer scroll-snap sequencing. */
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.journey-step > * {
+  width: 70%;
+}
+
+.journey-step.perspective-panel > * {
+  width: 90%;
+}
+
+.journey-step::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---------- Journey view switch ---------- */
 
 .perspective-panel {
@@ -787,6 +837,10 @@ main {
 
   .journey-experience .view-switch .pill {
     padding: 10px 16px;
+  }
+
+  .journey-step > * {
+    width: 92%;
   }
 }
 
