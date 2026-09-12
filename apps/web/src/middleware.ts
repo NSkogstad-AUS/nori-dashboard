@@ -1,7 +1,9 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// The health check stays public (used by uptime/orchestration checks that don't carry a Clerk
-// session); everything else requires sign-in. See plan/PHASE_3_PLAN.md section 4.2.
+// The health check and Clerk's own sign-in/sign-up pages stay public (a protected sign-in page
+// can never be reached — protecting it causes an infinite auth.protect() -> redirect-to-sign-in
+// -> auth.protect() loop, ERR_TOO_MANY_REDIRECTS); everything else requires sign-in. See
+// plan/PHASE_3_PLAN.md section 4.2.
 //
 // NOTE: Clerk's SDK flags createRouteMatcher()/auth.protect() as deprecated in favor of
 // resource-based auth checks (calling auth()/auth.protect() directly in each route/page instead
@@ -12,7 +14,11 @@ import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 // that read fixture data today (home, runs, journeys) do not yet call auth() themselves; adding
 // resource-based checks to them is a follow-up once those pages move off fixtures, not scoped to
 // this phase's websites/workspace work.
-const isPublicRoute = createRouteMatcher(['/api/health']);
+const isPublicRoute = createRouteMatcher([
+  '/api/health',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+]);
 
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
