@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import '../../framer/styles.css';
 import '@nori/ui/src/tokens/tokens.css';
 import '@nori/ui/src/tokens/motion.css';
 import '@nori/ui/src/styles/components.css';

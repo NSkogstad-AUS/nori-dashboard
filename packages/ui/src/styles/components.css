@@ -2781,36 +2781,6 @@ form > .pill {
   }
 }
 
-/* The imported Framer canvas has an offset child; fit its content to this section. */
-.journey-framer-feature {
-  width: 100%;
-  max-width: 1080px;
-  height: 420px;
-  margin: 0 auto 48px;
-}
-
-.journey-framer-feature .framer-ef2oyf-container {
-  inset: 0 !important;
-  height: 100% !important;
-}
-
-@media (max-width: 600px) {
-  .journey-framer-feature {
-    height: 634px;
-  }
-
-  .journey-framer-feature .framer-KsxYk.framer-rxqz2y {
-    flex-direction: column;
-  }
-
-  .journey-framer-feature .framer-KsxYk > .framer-1m3ip43-container,
-  .journey-framer-feature .framer-KsxYk > .framer-7ddgj4-container {
-    flex: 1 1 0 !important;
-    width: 100% !important;
-    min-height: 0;
-  }
-}
-
 /* Selecting a perspective opens its description within the portrait surface. */
 .people {
   container-type: inline-size;
