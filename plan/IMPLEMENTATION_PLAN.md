@@ -167,6 +167,9 @@ Every event needs a stable ID, run ID, optional session ID, ordered sequence, ti
 
 ### Phase 2 — Turn the chosen design into application components
 
+Detailed working plan: [PHASE_2_PLAN.md](./PHASE_2_PLAN.md). Work through that document's
+checklist; the items below are the summary view.
+
 - [ ] Extract Soft Spectrum tokens: colors, gradients, text contrast, radii, spacing, shadows, and motion.
 - [ ] Build AppShell, Sidebar, WebsiteSwitcher, PageHeader, and floating quick actions.
 - [ ] Build PersonaShelf, PersonaPill, JourneyViewSwitch, JourneyStage, and JourneyStep.
