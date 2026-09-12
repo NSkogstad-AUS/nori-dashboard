@@ -502,46 +502,44 @@ main {
   margin: 0;
 }
 
-/* Rectangular card, matching the persona library's PersonaCard treatment: a photo banner on
-   top, then name/role/issue-count below — same click-to-select button behavior as before, just
-   a taller card shape instead of a horizontal pill. */
+/* Full-bleed photo card: the photo fills the entire card, name/role sit in a top overlay with a
+   scrim for legibility, and a frosted bottom bar carries a compact identity mark plus the
+   select/watch action — same click-to-select button behavior as before, the photo is just the
+   whole card now instead of a banner above separate copy. */
 .person {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: block;
   text-align: left;
-  gap: 0;
   padding: 0;
-  border-radius: var(--radius-md);
-  background: var(--paper);
-  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--peach);
+  border: none;
   overflow: hidden;
+  aspect-ratio: 3 / 4;
   min-width: 0;
+  box-shadow: var(--shadow-sm);
+}
+
+.person.blue {
+  background: var(--blue);
+}
+.person.violet {
+  background: var(--violet);
+}
+.person.lime {
+  background: var(--lime);
 }
 
 .person-photo-frame {
-  display: block;
-  width: 100%;
-  aspect-ratio: 5 / 4;
-  background: var(--peach);
-}
-
-.person.blue .person-photo-frame {
-  background: var(--blue);
-}
-.person.violet .person-photo-frame {
-  background: var(--violet);
-}
-.person.lime .person-photo-frame {
-  background: var(--lime);
+  position: absolute;
+  inset: 0;
 }
 
 .person-photo-frame .emoji {
   width: 100%;
   height: 100%;
   border-radius: 0;
-  font-size: 32px;
+  font-size: 48px;
   background: none;
 }
 
@@ -562,51 +560,86 @@ main {
   flex-shrink: 0;
 }
 
-.person-copy {
+.person-overlay-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  padding: var(--space-sm) 14px 0;
+  gap: 2px;
+  padding: var(--space-sm) 14px var(--space-lg);
+  background: linear-gradient(to bottom, rgb(0 0 0 / 45%), transparent);
 }
 
-.person-copy strong {
-  font-size: var(--text-xs);
+.person-overlay-top strong {
+  font-size: var(--text-sm);
   font-weight: 600;
+  color: #fff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 30%);
 }
 
-.person-copy small {
+.person-overlay-top small {
   font-size: var(--text-2xs);
-  color: var(--muted);
-  line-height: 1.4;
+  color: rgb(255 255 255 / 90%);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 30%);
 }
 
-/* Issue count: color (--signal) is reserved for when there is something to report. Zero issues
-   renders as quiet, ink-muted text — no red badge for "nothing found". */
-.issue-count {
-  flex-shrink: 0;
+.person-overlay-bottom {
+  position: absolute;
+  left: var(--space-2xs);
+  right: var(--space-2xs);
+  bottom: var(--space-2xs);
   display: flex;
-  align-items: baseline;
-  gap: 3px;
-  font-size: var(--text-2xs);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  padding: var(--space-2xs) 14px var(--space-sm);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: 6px 6px 6px 8px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 85%);
+  backdrop-filter: blur(8px);
 }
 
-.person.has-issues .issue-count {
+.person-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+
+.person-identity-emoji {
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.person-identity .signal {
   color: var(--signal);
   font-weight: 600;
 }
 
-.issue-word {
-  display: none;
+.person-action {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.person.selected .person-action {
+  background: var(--signal);
 }
 
 .person.selected {
-  background: #fff;
-  border-color: var(--ink);
-  box-shadow: var(--shadow-sm);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
 /* ---------- Journey view switch ---------- */
@@ -2377,15 +2410,6 @@ form > .pill {
   .people {
     gap: 10px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .person-copy {
-    padding: var(--space-xs) 12px 0;
-  }
-  .issue-count {
-    padding: var(--space-2xs) 12px var(--space-xs);
-  }
-  .person-copy small {
-    font-size: var(--text-2xs);
   }
   .journey-tools {
     align-items: flex-start;
