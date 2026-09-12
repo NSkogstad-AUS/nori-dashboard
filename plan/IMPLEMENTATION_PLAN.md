@@ -155,13 +155,13 @@ Every event needs a stable ID, run ID, optional session ID, ordered sequence, ti
 
 ### Phase 1 — Scaffold a runnable project
 
-- [ ] Create the chosen source layout and dependency lockfile.
-- [ ] Add formatting, linting, type checking, test scripts, and a root development guide.
-- [ ] Add `.env.example` containing variable names and descriptions, never credentials.
-- [ ] Configure local database, queue, and private artifact storage.
-- [ ] Add health checks for the web process and worker.
-- [ ] Establish shared request/response/event schemas and structured error codes.
-- [ ] Add CI checks for types, lint, tests, and production build.
+- [x] Create the chosen source layout and dependency lockfile.
+- [x] Add formatting, linting, type checking, test scripts, and a root development guide.
+- [x] Add `.env.example` containing variable names and descriptions, never credentials.
+- [x] Configure local database, queue, and private artifact storage. _(Postgres via docker-compose; DB-backed `jobs` table with lease/heartbeat columns; local-disk artifact storage dir for dev only, per `.env.example`. Queue polling and object storage are not implemented yet — this only configures the tables/paths, not the runtime logic, which lands in later phases.)_
+- [x] Add health checks for the web process and worker.
+- [x] Establish shared request/response/event schemas and structured error codes.
+- [x] Add CI checks for types, lint, tests, and production build. _(No test step yet — no tests exist to run. CI runs typecheck, lint, and build; a test step will be added once Phase 4 introduces the fixture site and tests/integration coverage.)_
 
 **Gate:** A fresh checkout starts using documented instructions, with no manually edited source files or committed secrets.
 
@@ -336,13 +336,14 @@ The first vertical slice is **one task, one persona, one browser session, one ev
 | --- | --- | --- |
 | Visual direction | Confirmed | Journey Atlas 01; homepage Soft Spectrum |
 | Overview / selected-persona live view | Confirmed | Keep both floating controls |
-| Framework, queue, database, storage | Pending | Proposed defaults in section 4 |
-| Model provider and model | Pending | Compare tool reliability, cost, privacy, and deployment needs |
-| Authentication provider | Pending | Must support server-side workspace authorization |
-| First task and authorized-site policy | Pending | Recommend public-plan comparison on owned fixtures first |
-| Session limits and cost caps | Pending | Must be fixed before uncontrolled browser exploration |
-| Artifact retention / deletion policy | Pending | Must be fixed before external hosted use |
+| Framework, queue, database, storage | Confirmed | Section 4 defaults: Next.js + TS web app, Node/Playwright worker, PostgreSQL, DB-backed durable queue, local storage for artifacts in dev (object storage later) |
+| Model provider and model | Confirmed | Claude (Anthropic) via the Claude API, tool use for action selection |
+| Authentication provider | Confirmed | Managed auth service (Clerk/Auth.js), server-side workspace authorization |
+| First task and authorized-site policy | Confirmed | First task: discover and compare a product's public plans. Authorization: owned fixtures only for first release, no real external site scanning yet |
+| Session limits and cost caps | Confirmed | Per persona session: max 20 actions, 3 min wall-clock, 1 browser context, no downloads/uploads. Per run: hard cost cap ~$0.50 (tokens + browser compute), force-terminate and mark failed on breach |
+| Artifact retention / deletion policy | Confirmed | Screenshots/artifacts retained 7 days, then deleted from storage and DB |
 | Live screenshot cadence | Proposed | 2–5 seconds, action-triggered captures, measured under load |
+| Hosting / deployment target | Confirmed | Local-only for Phase 1 (docker-compose); hosting target (Vercel + separate worker host) decided later before Phase 11 staged deployment |
 
 ## 10. Session handoff
 
@@ -352,5 +353,22 @@ The first vertical slice is **one task, one persona, one browser session, one ev
 - Current blocker: none for planning; stack/provider and safety-policy decisions precede implementation.
 - Next concrete task: resolve Phase 0 decisions, then scaffold Phase 1.
 - Latest checks: planning document only; no production application tests exist in this repository yet.
+
+### 2026-09-12 — Phase 0 resolved
+
+- Tasks checked off: all Phase 0 checklist items (first task type, authorization policy, stack, model provider, auth provider, hosting, session limits, cost cap, retention).
+- Changed areas: decision log (section 9) updated from Pending to Confirmed for framework/queue/db/storage, model provider, auth provider, first task/authorization policy, session limits/cost caps, retention policy, and hosting target.
+- Decisions recorded: first task = public plan comparison; authorization = owned fixtures only for first release; stack = plan's proposed defaults (Next.js/TS web, Node/Playwright worker, PostgreSQL, DB-backed queue, local storage for dev artifacts); model provider = Claude (Anthropic); auth = managed service (Clerk/Auth.js); hosting = local-only via docker-compose for Phase 1, real hosting target deferred to before Phase 11; session limits = max 20 actions / 3 min wall-clock / 1 browser context / no downloads-uploads per persona session; cost cap = ~$0.50/run hard cap, force-terminate on breach; retention = 7 days for screenshots/artifacts.
+- Checks actually run: none (planning/decision update only).
+- Failures/limitations: live screenshot cadence remains "Proposed" (2–5s), not yet confirmed under load — revisit in Phase 8.
+- Next concrete task: begin Phase 1 — scaffold the source layout, dependency lockfile, local docker-compose services (Postgres, queue), health checks, and shared schemas per section 4/6.
+
+### 2026-09-12 — Phase 1 scaffolded
+
+- Tasks checked off (Phase 1 checklist): source layout created (`apps/web`, `apps/worker`, `packages/contracts`, `packages/db`, `packages/agent`, `packages/ui`, `tests/fixtures/site`, `tests/integration`, `tests/e2e`, `docs/`); npm workspaces + lockfile; formatting (Prettier), linting (ESLint flat config), type checking (tsc per workspace), and `docs/DEVELOPMENT.md` as the root dev guide; `.env.example` with variable names/descriptions only; local Postgres via `docker-compose.yml`; health checks for both the web process (`/api/health`) and worker (`/health` on a plain `node:http` server); shared request/response/event schemas and structured error codes in `@nori/contracts`; CI workflow (`.github/workflows/ci.yml`) running typecheck/lint/build on push/PR.
+- Changed areas: entire repo root restructured into the monorepo layout from section 4. The old prototype (`index.html`, `app.js`, `styles.css`, `assets/`, `README.md`) was moved to `prototype/` and preserved unchanged as the frozen Phase 2 design reference, per the Phase 2 gate. `packages/db` includes a durable, DB-backed job queue table (`jobs`, with lease/heartbeat columns) ahead of Phase 6, since the plan requires a maintained DB-backed queue rather than inventing an in-memory one later.
+- Checks actually run: `npm install` (clean), `npm run typecheck` (all 6 workspaces pass), `npm run lint` (clean, no warnings), `npm run build` (apps/web builds via `next build`, apps/worker via `tsc`, both succeed). Worker skeleton manually smoke-tested: started via `node --experimental-strip-types apps/worker/src/main.ts`, `GET /health` returned `{"status":"ok"}`, SIGTERM produced a graceful shutdown log and clean exit. Did not run `docker compose up` or `npm run db:migrate` — not required for this phase, no live Postgres needed yet.
+- Failures/limitations: `apps/worker` has no job-processing loop yet (intentionally deferred — marked with `TODO(Phase 4/5/6)` in `src/main.ts` pointing at `packages/db`'s `jobs` table). `packages/agent` and `packages/ui` are empty placeholders with comments only, per Phase 2/5 scope. `apps/web` is a placeholder page, not the ported Journey Atlas UI. Live screenshot cadence (2–5s) still unconfirmed under load — carried over from Phase 0, revisit in Phase 8.
+- Next concrete task: begin Phase 2 — extract Soft Spectrum design tokens (colors, gradients, radii, spacing, shadows, motion) from `prototype/styles.css` into `packages/ui`, then build the first real components (AppShell, Sidebar, PersonaShelf, etc.) as stateful React components in `apps/web`, replacing the placeholder page. Do not begin backend/agent work (Phase 3+) in the same pass, per the plan's own rule against mixing design migration with agent-system work.
 
 For later sessions, append: date, tasks checked off, changed areas, checks actually run, failures/limitations, and the next single task.
