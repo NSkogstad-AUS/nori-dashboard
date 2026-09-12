@@ -1,9 +1,12 @@
 import type { NextConfig } from 'next';
+import { PHASE_DEVELOPMENT_SERVER } from 'next/constants';
 
-// @nori/ui ships TS/CSS source directly rather than a build output, so Next needs to transpile
-// it as part of the app build (see plan/PHASE_2_PLAN.md's next.config.ts note).
-const nextConfig: NextConfig = {
-  transpilePackages: ['@nori/ui'],
-};
-
-export default nextConfig;
+// Keep development assets separate so a production build cannot remove the
+// JavaScript chunks needed to hydrate pages in the running development server.
+export default function nextConfig(phase: string): NextConfig {
+  return {
+    distDir: phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next',
+    // @nori/ui ships TypeScript and CSS source directly.
+    transpilePackages: ['@nori/ui'],
+  };
+}

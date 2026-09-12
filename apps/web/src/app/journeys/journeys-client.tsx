@@ -5,6 +5,7 @@
 // plan/PHASE_2_PLAN.md section 6.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import FeatureFlipper from '../../../framer/feature-flipper';
 import {
   JourneyViewSwitch,
   PersonaShelf,
@@ -133,6 +134,9 @@ function JourneysContent() {
       <div className="perspective-panel">
         <PersonaShelfSection onOpenLibrary={openLibrary} attachedPersonaIds={attachedPersonaIds} />
       </div>
+      <section className="journey-framer-feature" aria-label="Feature flipper">
+        <FeatureFlipper style={{ width: '100%', height: '100%' }} />
+      </section>
       <div className="journey-experience">
         <JourneyViewSwitch mode={mode} onChange={setMode} />
         {mode === 'live' ? (

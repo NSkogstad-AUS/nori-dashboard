@@ -52,3 +52,7 @@ npm run format:check
 - `apps/worker` starts and reports healthy but does not claim or process any jobs
   (Phase 4/5/6).
 - No tests exist yet (`tests/` has placeholder READMEs only; Phase 4+ populates them).
+
+The web development server writes to `apps/web/.next-dev`; production builds use
+`apps/web/.next`. These directories stay separate so running a build does not
+remove JavaScript assets from an active development session.

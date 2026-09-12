@@ -132,15 +132,13 @@ small {
 .shell {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
-  min-height: calc(100svh - 54px);
-  max-width: 1680px;
-  margin: var(--space-md) auto var(--space-xl);
-  width: calc(100% - 36px);
-  border: 1px solid var(--line);
+  min-height: 100svh;
+  width: 100%;
+  margin: 0;
+  border: 0;
   background: #fff;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 18px 60px rgb(26 29 36 / 5%);
 }
 
 .shell.collapsed {
@@ -2390,10 +2388,7 @@ form > .pill {
 
 @media (max-width: 800px) {
   .shell {
-    margin: 10px;
-    width: calc(100% - 20px);
     grid-template-columns: 60px minmax(0, 1fr);
-    border-radius: 20px;
   }
   .shell.collapsed {
     grid-template-columns: 60px minmax(0, 1fr);
@@ -2659,7 +2654,7 @@ form > .pill {
 
 /* Website entry and compact perspectives */
 .journey-website {
-  padding: 8px 0 32px;
+  padding: 36px 0 32px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2721,15 +2716,26 @@ form > .pill {
 }
 
 .person-compact {
-  justify-content: center;
+  gap: 0;
   border-radius: 12px;
   padding: 14px;
   box-shadow: 0 6px 16px -12px rgba(25, 25, 30, 0.2);
 }
 
-.person-compact .person-photo-frame,
-.person-compact .person-role {
-  display: none;
+.person-portrait-reveal {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.person-portrait-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.person-compact .person-portrait-reveal {
+  grid-template-rows: 0fr;
+  opacity: 0;
 }
 
 .person-compact .person-footer {
@@ -2768,5 +2774,35 @@ form > .pill {
 @media (max-width: 540px) {
   .people-compact {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The imported Framer canvas has an offset child; fit its content to this section. */
+.journey-framer-feature {
+  width: 100%;
+  max-width: 1080px;
+  height: 420px;
+  margin: 0 auto 48px;
+}
+
+.journey-framer-feature .framer-ef2oyf-container {
+  inset: 0 !important;
+  height: 100% !important;
+}
+
+@media (max-width: 600px) {
+  .journey-framer-feature {
+    height: 634px;
+  }
+
+  .journey-framer-feature .framer-KsxYk.framer-rxqz2y {
+    flex-direction: column;
+  }
+
+  .journey-framer-feature .framer-KsxYk > .framer-1m3ip43-container,
+  .journey-framer-feature .framer-KsxYk > .framer-7ddgj4-container {
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    min-height: 0;
   }
 }

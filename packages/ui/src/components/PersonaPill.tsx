@@ -46,16 +46,20 @@ export function PersonaPill({
       data-person={id}
       aria-label={name}
     >
-      <span className="person-photo-frame">
-        <span className="person-heading">
-          <strong>{name}</strong>
-        </span>
-        {photoSrc ? (
-          <img src={photoSrc} alt="" className="person-photo" />
-        ) : (
-          <span className="emoji">{emoji}</span>
-        )}
-      </span>
+      <div className="person-portrait-reveal" aria-hidden={compact}>
+        <div className="person-portrait-clip">
+          <span className="person-photo-frame">
+            <span className="person-heading">
+              <strong>{name}</strong>
+            </span>
+            {photoSrc ? (
+              <img src={photoSrc} alt="" className="person-photo" />
+            ) : (
+              <span className="emoji">{emoji}</span>
+            )}
+          </span>
+        </div>
+      </div>
       <span className="person-footer">
         <span className="person-identity">
           {photoSrc ? (
@@ -65,7 +69,7 @@ export function PersonaPill({
           )}
           <span className="person-details">
             {compact && <strong className="person-compact-name">{name}</strong>}
-            <span className="person-role">{role}</span>
+            {!compact && <span className="person-role">{role}</span>}
           </span>
         </span>
         <button
