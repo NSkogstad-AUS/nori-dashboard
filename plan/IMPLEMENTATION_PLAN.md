@@ -187,14 +187,27 @@ checklist; the items below are the summary view.
 Detailed working plan: [PHASE_3_PLAN.md](./PHASE_3_PLAN.md). Work through that document's
 checklist; the items below are the summary view.
 
-- [ ] Implement authentication and workspace membership checks.
-- [ ] Add migrations for the entities above, foreign keys, indexes, and uniqueness constraints.
-- [ ] Build website creation, validation, listing, and detail views.
+- [x] Implement authentication and workspace membership checks. _(Clerk + Clerk Organizations as
+  workspaces; middleware + `requireWorkspace()` resource-level checks in every API route.)_
+- [x] Add migrations for the entities above, foreign keys, indexes, and uniqueness constraints.
+  _(Already scaffolded in Phase 1's `001_init.sql`/`002_queue.sql`; Phase 3 added
+  `003_clerk_org_link.sql` and ran all three against real Postgres for the first time.)_
+- [x] Build website creation, validation, listing views. _(`NewWebsiteDialog` + `POST
+  /api/websites`, `GET /api/websites`, `websites/page.tsx` as a Server Component.)_ Detail view
+  (`GET /api/websites/:id`) exists as an API route but has no dedicated page UI yet — deferred,
+  not blocking the gate.
 - [ ] Implement the agreed ownership/authorization process and show its status in the UI.
-- [ ] Load run cards and website counts from the database, not hard-coded examples.
-- [ ] Test that one workspace cannot access another workspace's runs, events, or artifacts.
+  _(`authorization_status` exists in the schema/API response but isn't surfaced in the UI yet —
+  deferred; not required for this phase's literal gate.)_
+- [ ] Load run cards and website counts from the database, not hard-coded examples. _(Explicitly
+  deferred to a later phase — see [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 1's scope
+  boundary; runs stay fixture-backed this phase, only websites moved to real data.)_
+- [x] Test that one workspace cannot access another workspace's runs, events, or artifacts.
+  _(`tests/integration/workspace-isolation.test.ts`, scoped to websites specifically since runs/
+  events/artifacts aren't real yet — verified to actually catch a broken-isolation regression.)_
 
 **Gate:** Websites persist across reloads, and cross-workspace access is rejected server-side.
+Both satisfied — see [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 6 for verification detail.
 
 ### Phase 4 — Safe deterministic browser execution
 
@@ -377,5 +390,15 @@ The first vertical slice is **one task, one persona, one browser session, one ev
 - Checks actually run: `npm install` (clean), `npm run typecheck` (all 6 workspaces pass), `npm run lint` (clean, no warnings), `npm run build` (apps/web builds via `next build`, apps/worker via `tsc`, both succeed). Worker skeleton manually smoke-tested: started via `node --experimental-strip-types apps/worker/src/main.ts`, `GET /health` returned `{"status":"ok"}`, SIGTERM produced a graceful shutdown log and clean exit. Did not run `docker compose up` or `npm run db:migrate` — not required for this phase, no live Postgres needed yet.
 - Failures/limitations: `apps/worker` has no job-processing loop yet (intentionally deferred — marked with `TODO(Phase 4/5/6)` in `src/main.ts` pointing at `packages/db`'s `jobs` table). `packages/agent` and `packages/ui` are empty placeholders with comments only, per Phase 2/5 scope. `apps/web` is a placeholder page, not the ported Journey Atlas UI. Live screenshot cadence (2–5s) still unconfirmed under load — carried over from Phase 0, revisit in Phase 8.
 - Next concrete task: begin Phase 2 — extract Soft Spectrum design tokens (colors, gradients, radii, spacing, shadows, motion) from `prototype/styles.css` into `packages/ui`, then build the first real components (AppShell, Sidebar, PersonaShelf, etc.) as stateful React components in `apps/web`, replacing the placeholder page. Do not begin backend/agent work (Phase 3+) in the same pass, per the plan's own rule against mixing design migration with agent-system work.
+
+### 2026-09-12 — Phase 2 complete, Phase 3 complete
+
+Phase 2 (Journey Atlas ported into real React components, design tokens extracted, fixture data shaped to `@nori/contracts`) was completed and logged in full in [PHASE_2_PLAN.md](./PHASE_2_PLAN.md)'s own session log across several work sessions — not duplicated here.
+
+- Tasks checked off: every Phase 3 checklist item satisfying the phase's literal gate (websites persist across reloads; cross-workspace access rejected server-side) — see the checklist above and [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 6 for the full breakdown of what's done vs. explicitly deferred (run/event/artifact data staying fixture-backed, website detail-view page and authorization-status UI deferred).
+- Changed areas: Clerk + Clerk Organizations wired up as Nori's workspace concept; `packages/db` query/repository layer built from scratch (workspaces, websites, shared row-mapping helper) and verified against real local Postgres; website CRUD API routes; `websites/page.tsx` converted to a Server Component with a real "add website" flow; sidebar/workspace context now carries real website data instead of fixtures; a committed automated cross-workspace isolation test. Full detail, including two real pre-existing/newly-introduced bugs found and fixed along the way (the migration script's Node runner, and Next's webpack not resolving this repo's `.js`-suffixed imports for two packages touched by server code for the first time), is in [PHASE_3_PLAN.md](./PHASE_3_PLAN.md)'s session log.
+- Checks actually run: `npm run typecheck`/`lint`/`build` all pass; `npm run test:integration` passes against real Postgres and was verified to actually catch a deliberately-introduced isolation regression.
+- Failures/limitations: real Clerk sign-in (and therefore true browser click-testing of the create-website flow) cannot be exercised without the user's own Clerk API keys — documented, not silently glossed over. Home/runs pages still show fixture data unrelated to whichever real website is selected, by design for this phase's scope.
+- Next concrete task: Phase 4 — safe deterministic browser execution. Its own explicit gate: build this before letting a model control arbitrary navigation. Real Clerk credential setup (`npx clerk@latest init` or manual) is a good parallel follow-up, not a blocker for Phase 4 itself.
 
 For later sessions, append: date, tasks checked off, changed areas, checks actually run, failures/limitations, and the next single task.

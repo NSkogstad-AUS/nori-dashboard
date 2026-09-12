@@ -16,7 +16,8 @@
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:integration",
+    "test:integration": "tsx --test tests/integration/**/*.test.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "npm run migrate --workspace=packages/db"

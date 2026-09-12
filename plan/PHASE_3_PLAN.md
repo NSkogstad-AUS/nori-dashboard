@@ -143,13 +143,19 @@ websites — even when passed workspace B's website id directly. This is the lit
 
 Restating the master plan's Phase 3 gate plus concrete, checkable criteria:
 
-- [ ] Websites persist across reloads (created via the real UI, still present after a hard
-  refresh, sourced from Postgres, not a fixture array).
-- [ ] Cross-workspace access is rejected server-side — proven by an automated test, not just
-  reasoning about the code.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run build` all pass at the repo root.
-- [ ] `packages/contracts`'s `runSchema` and `001_init.sql`'s `runs` table agree on every column.
-- [ ] Clerk middleware and `ClerkProvider` are correctly wired, even though real sign-in can't be
+- [x] Websites persist across reloads (created via the real UI, still present after a hard
+  refresh, sourced from Postgres, not a fixture array). Verified via `createWebsite` +
+  `listWebsitesForWorkspace` against real Postgres; the UI path itself (NewWebsiteDialog → POST
+  /api/websites) is built and typechecked/built cleanly, but not click-tested in a browser since
+  that requires real Clerk sign-in — see the Clerk item below.
+- [x] Cross-workspace access is rejected server-side — proven by an automated test
+  (`tests/integration/workspace-isolation.test.ts`), not just reasoning about the code. The test
+  was verified to actually test something: deliberately breaking `getWebsiteById`'s workspace
+  scoping made it fail loudly with a clear diff, then the fix was confirmed to restore a clean
+  pass.
+- [x] `npm run typecheck`, `npm run lint`, `npm run build` all pass at the repo root.
+- [x] `packages/contracts`'s `runSchema` and `001_init.sql`'s `runs` table agree on every column.
+- [x] Clerk middleware and `ClerkProvider` are correctly wired, even though real sign-in can't be
   exercised end-to-end without the user's own Clerk API keys — this limitation is documented, not
   silently glossed over.
 
@@ -223,6 +229,66 @@ Restating the master plan's Phase 3 gate plus concrete, checkable criteria:
 - Failures/limitations: the cross-workspace isolation check above was a manual smoke test, not
   yet a committed automated test — section 4.6 (a real test file) is still outstanding. Real
   Clerk sign-in still cannot be exercised end-to-end without the user's own Clerk API keys.
-- Next concrete task: 4.4 — API routes for website CRUD (`apps/web/src/app/api/websites/
-  route.ts`, `.../[id]/route.ts`), then 4.5 (Server Component conversion of `websites/page.tsx`)
-  and 4.6 (turning this session's manual isolation smoke test into a committed automated test).
+- Next concrete task at the time: 4.4 — API routes for website CRUD.
+
+### 2026-09-12 (continued) — API routes, Server Component conversion, automated test: Phase 3 complete
+
+- Tasks checked off: 4.4, 4.5, 4.6 — every remaining item in this plan's implementation steps and
+  acceptance gate.
+- Changed areas: `apps/web/src/lib/workspace-auth.ts` (new — `requireWorkspace()` resolves the
+  current Clerk org into Nori's workspace row, typed `UnauthorizedError`/
+  `NoActiveOrganizationError` for API routes to map to 401/403); `apps/web/src/app/api/websites/
+  route.ts` and `.../[id]/route.ts` (new — GET list/create, GET detail, every handler scoped by
+  the resolved workspace); `apps/web/next.config.ts` (added `@nori/contracts`/`@nori/db` to
+  `transpilePackages`); `packages/contracts/src` and `packages/db/src` (stripped `.js` from
+  internal relative imports — see the real build-pipeline bug found below); `packages/ui/src/
+  components/NewWebsiteDialog.tsx` (new, mirrors `NewRunDialog`'s shape); `apps/web/src/context/
+  workspace-context.tsx` (now holds the real website list + `addWebsite`, seeded via
+  `initialWebsites` instead of importing the fixture array); `apps/web/src/app/layout.tsx`
+  (fetches the workspace's real websites server-side, passes them into `WorkspaceProvider`);
+  `apps/web/src/app/app-shell-frame.tsx` (reads `websites` from context instead of the fixture
+  import); `apps/web/src/app/websites/page.tsx` (now an async Server Component) +
+  `websites-page-client.tsx` (new — the interactive split-off); `apps/web/src/app/page.tsx` and
+  `runs/page.tsx` (fixed a coherence gap — see below); `tests/integration/
+  workspace-isolation.test.ts` (new — the automated cross-workspace isolation test); root
+  `package.json` (added `test:integration` script using Node's built-in test runner via `tsx`, no
+  new test-framework dependency).
+- **Real build-pipeline bug found and fixed**: adding `@nori/contracts`/`@nori/db` to
+  `transpilePackages` was not sufficient to fix Next's webpack build — it still failed with
+  "Module not found: Can't resolve './entities.js'" etc., since `transpilePackages` controls
+  whether Next transpiles a package's syntax, not whether it remaps `.js`-suffixed import
+  specifiers to the `.ts` files they point to on disk. The actual fix (matching a fix already
+  applied to `packages/ui`/`apps/web` in an earlier session, now extended to the two packages
+  touched by API routes for the first time) was stripping `.js` from every internal relative
+  import in `packages/contracts/src` and `packages/db/src` — except `packages/db/src/migrate.ts`,
+  which is run directly via `tsx` and needs the literal `.js` extension to resolve correctly
+  under that runner.
+- **Real coherence bug found and fixed**: once `selectedWebsiteId` (in `WorkspaceContext`) became
+  a real database id instead of a fixture id, `runs/page.tsx` and home `page.tsx`'s
+  `websites.find(id) ?? fixtureWebsites[0]` fallback pattern would silently show Acme's fixture
+  data attributed to whichever real website happened to be selected, since the real id would
+  essentially never match a fixture id. Fixed by removing the `?? fixtureWebsites[0]` fallback in
+  both: `runs/page.tsx` now shows an honest empty state when there's no matching fixture website,
+  and home `page.tsx`'s "Latest journey" section was relabeled "Sample journey" instead of
+  attributing fixture data to a real website's name.
+- Checks actually run: `npm run typecheck`/`lint`/`build` all pass at the repo root (build output
+  confirms `/websites`, `/api/websites`, `/api/websites/[id]` all compile; every route is now `ƒ`
+  dynamic rather than `○` static, correctly, since `auth()` reads request headers). Ran
+  `npm run test:integration` against real local Postgres — all 4 assertions pass, and the test
+  was verified to actually catch a real regression: deliberately removing `getWebsiteById`'s
+  workspace-scoping clause made it fail with a clear diff, restoring the fix brought it back to a
+  clean pass. Started the dev server and confirmed every route (`/`, `/websites`, `/runs`,
+  `/journeys`) responds with Clerk's own clear "missing publishableKey" error (no keys set) rather
+  than any new/different failure mode — confirms the whole restructure holds together structurally.
+- Failures/limitations: real Clerk sign-in, and therefore true end-to-end browser click-testing
+  of "create a website via the UI, reload, see it persist," still cannot be exercised without the
+  user's own Clerk API keys (`npx clerk@latest init`). Home and runs pages still show fixture
+  journey/run data unrelated to whichever real website is selected — intentional and documented,
+  not a bug, since moving those off fixtures is out of this phase's scope, but it does mean the
+  app's data model is only fully coherent for the Websites page/workflow at this point, not
+  end-to-end.
+- Next concrete task: **Phase 3 is complete per this plan's checklist.** The next phase is
+  Phase 4 (safe deterministic browser execution) per `plan/IMPLEMENTATION_PLAN.md` — but note its
+  explicit gate: "Implement this before letting a model control arbitrary navigation." A natural
+  follow-up before or alongside Phase 4 (not blocking it) is real Clerk credential setup so this
+  phase's work can finally be exercised end-to-end in a browser.
