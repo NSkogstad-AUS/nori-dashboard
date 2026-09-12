@@ -1,0 +1,72 @@
+/*
+ * Nori — Soft Spectrum design tokens.
+ *
+ * Extracted from the FINAL `:root` block in prototype/styles.css (the one redefined near the
+ * bottom of the file, just before the `body[data-design="1"]` override at the very end — CSS
+ * custom properties cascade, so that later declaration is the one actually in effect for the
+ * selected "Journey Atlas" direction, not the earlier draft `:root` block near the top of the
+ * file). See plan/PHASE_2_PLAN.md section 2 for the extraction rationale.
+ *
+ * Explicitly NOT ported here: anything scoped under body[data-design="2"|"3"|"4"] or the
+ * `.concept-bar`/`data-concept` rules — those belonged to the abandoned 5-concept comparison
+ * and must not resurface as a design-token source.
+ *
+ * Radii, spacing, and shadows below are NOT a 1:1 port — the prototype uses ad hoc magic
+ * numbers inline on individual rules. This file consolidates those into small scales, per the
+ * plan's explicit instruction that this is a deliberate improvement, not a straight port.
+ *
+ * Motion tokens/rules live in ./motion.css (see that file's header for the split rationale).
+ */
+
+:root {
+  /* Base text / surface colors (final :root block, prototype/styles.css) */
+  --ink: #24252d;
+  --muted: #626570;
+  --paper: #faf9fb;
+  --line: #dedee7;
+
+  /* Persona / category accent colors (final :root block, prototype/styles.css) */
+  --accent: #ff8c73;
+  --coral: #ff8c73;
+  --peach: #f6c6d8;
+  --blue: #b9dcff;
+  --violet: #cdc1f4;
+  --lime: #cae7e7;
+
+  /* App background surface + hero gradient */
+  --workspace: #faf9fb;
+  --spectrum: radial-gradient(ellipse at 5% 12%, #bedaff, transparent 55%),
+    radial-gradient(ellipse at 90% 0%, #b4a3ee, transparent 58%),
+    radial-gradient(ellipse at 30% 100%, #f48fa9, transparent 58%),
+    radial-gradient(ellipse at 93% 100%, #ffdfbb, transparent 55%), #e4d6ef;
+
+  /*
+   * Radius scale — consolidates prototype magic numbers:
+   * .pill 30px, .circle 50%, dialog 27px, .map-panel/.transmission ~26-27px,
+   * .journey-node/.person ~14-17px, .website-link/.rail-link ~11-17px.
+   */
+  --radius-sm: 12px;
+  --radius-md: 17px;
+  --radius-lg: 27px;
+  --radius-pill: 999px;
+
+  /*
+   * Spacing scale — consolidates ad hoc paddings/gaps used across .shell, .rail,
+   * .persona-shelf, .map-panel, dialog, etc. (the prototype has no scale today).
+   */
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 18px;
+  --space-lg: 25px;
+  --space-xl: 34px;
+  --space-2xl: 48px;
+
+  /*
+   * Shadow scale — consolidates box-shadows from .shell, .pill/.circle, .journey-node,
+   * .floating-dock, dialog.
+   */
+  --shadow-sm: 0 3px 10px rgb(49 54 71 / 4%);
+  --shadow-md: 0 9px 20px rgb(60 64 85 / 7%);
+  --shadow-lg: 0 35px 100px rgb(36 38 51 / 19%);
+}

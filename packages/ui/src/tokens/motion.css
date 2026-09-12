@@ -1,0 +1,67 @@
+/*
+ * Nori — motion rules extracted from prototype/styles.css.
+ *
+ * Kept in a separate file (rather than folded into tokens.css) because these are not custom
+ * property declarations — they are actual transition/animation rules that must stay gated
+ * behind `prefers-reduced-motion: no-preference`, exactly as in the prototype. Splitting them
+ * out keeps tokens.css a pure "variables only" file and makes the accessibility-critical motion
+ * gating easy to find, audit, and keep intact in one place (see plan/PHASE_2_PLAN.md section 2
+ * and the "Reduced motion" item in section 7's accessibility checklist).
+ *
+ * Ported as-is from the `@media(prefers-reduced-motion:no-preference)` block in
+ * prototype/styles.css, with selectors that referenced dead five-concept-comparison surfaces
+ * (`.board`, `.lens-layout`) dropped since those layouts are not being ported.
+ */
+
+@media (prefers-reduced-motion: no-preference) {
+  .shell {
+    transition: grid-template-columns 0.3s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+
+  button {
+    transition:
+      background 0.18s,
+      box-shadow 0.18s,
+      transform 0.18s;
+  }
+
+  button:hover {
+    filter: brightness(0.985);
+  }
+
+  .journey-node:hover,
+  .run-card:hover,
+  .person:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+  }
+
+  .circle:hover {
+    transform: translateY(-2px);
+  }
+
+  .person:active {
+    transform: scale(0.95);
+  }
+
+  .overview-grid,
+  .run-grid,
+  .site-grid {
+    animation: nori-appear 0.32s ease both;
+  }
+
+  dialog[open] {
+    animation: nori-appear 0.2s ease;
+  }
+
+  @keyframes nori-appear {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
