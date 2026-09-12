@@ -97,6 +97,24 @@ if grep -q '^DATABASE_URL=$' .env 2>/dev/null || ! grep -q '^DATABASE_URL=' .env
   echo "    set DATABASE_URL in .env"
 fi
 
+# Next.js only reads env files from apps/web itself, not the monorepo root's .env — so
+# `npm run dev:web` never sees the root .env's DATABASE_URL on its own. Mirror it into
+# apps/web/.env.local (also where `npx clerk@latest init`, run from apps/web, writes Clerk's
+# keys — see the instructions below), without clobbering anything else already in that file.
+mkdir -p apps/web
+touch apps/web/.env.local
+if grep -q '^DATABASE_URL=' apps/web/.env.local 2>/dev/null; then
+  sed -i.bak "s|^DATABASE_URL=.*|DATABASE_URL=${DATABASE_URL}|" apps/web/.env.local && rm -f apps/web/.env.local.bak
+else
+  {
+    echo ""
+    echo "# Mirrored from the root .env by scripts/setup.sh — Next.js only reads env files from"
+    echo "# apps/web itself, not the monorepo root."
+    echo "DATABASE_URL=${DATABASE_URL}"
+  } >> apps/web/.env.local
+fi
+echo "    set DATABASE_URL in apps/web/.env.local"
+
 echo "==> Running database migrations"
 set -a
 # shellcheck disable=SC1091
@@ -108,12 +126,13 @@ echo ""
 echo "==> Setup mostly done. One manual step remains:"
 echo ""
 echo "    Clerk needs real API keys before the app will render past a 500 error."
-echo "    Run this now (non-interactive, no existing Clerk account needed):"
+echo "    Run this from apps/web (Clerk's CLI needs to detect the Next.js project —"
+echo "    it won't work from the repo root of this monorepo):"
 echo ""
-echo "        npx clerk@latest init"
+echo "        cd apps/web && npx clerk@latest init && cd ../.."
 echo ""
-echo "    This writes NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY into your .env."
-echo "    Once that's done:"
+echo "    This writes NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY into"
+echo "    apps/web/.env.local (not the root .env). Once that's done:"
 echo ""
 echo "        npm run dev:web"
 echo ""
