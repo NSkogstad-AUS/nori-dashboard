@@ -9,7 +9,6 @@ export interface PersonaShelfPerson {
   photoSrc?: string;
   role: string;
   colorClass: string;
-  issues: number;
 }
 
 export interface PersonaShelfProps {
@@ -18,6 +17,7 @@ export interface PersonaShelfProps {
   selectionMode: PersonaPillProps['selectionMode'];
   onSelect: (id: string) => void;
   onOpenLibrary: () => void;
+  onRemove: (id: string) => void;
   /** true in Live mode ("Choose whose experience to watch"), false in Overview. */
   liveCopy: boolean;
 }
@@ -28,6 +28,7 @@ export function PersonaShelf({
   selectionMode,
   onSelect,
   onOpenLibrary,
+  onRemove,
   liveCopy,
 }: PersonaShelfProps) {
   return (
@@ -39,14 +40,6 @@ export function PersonaShelf({
             {liveCopy ? 'Choose whose experience to watch' : 'Choose a person to trace their path'}
           </small>
         </div>
-        <button
-          type="button"
-          className="circle add-person"
-          aria-label="Open persona library"
-          onClick={onOpenLibrary}
-        >
-          +
-        </button>
       </div>
       <div className="people">
         {people.map((person) => (
@@ -58,12 +51,18 @@ export function PersonaShelf({
             photoSrc={person.photoSrc}
             role={person.role}
             colorClass={person.colorClass}
-            issues={person.issues}
             selected={selectedPersonId === person.id}
             selectionMode={selectionMode}
             onSelect={onSelect}
+            onRemove={onRemove}
           />
         ))}
+        {people.length < 4 && (
+          <button type="button" className="person-add" onClick={onOpenLibrary}>
+            <span aria-hidden="true">+</span>
+            Add a user
+          </button>
+        )}
       </div>
     </div>
   );

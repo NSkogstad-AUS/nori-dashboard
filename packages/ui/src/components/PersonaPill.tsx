@@ -8,7 +8,6 @@ export interface PersonaPillProps {
   photoSrc?: string;
   role: string;
   colorClass: string;
-  issues: number;
   selected: boolean;
   /**
    * 'toggle' (Overview): clicking the selected pill deselects it (multi-select-like — only one
@@ -18,6 +17,7 @@ export interface PersonaPillProps {
    */
   selectionMode: 'toggle' | 'single';
   onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
 }
 
 export function PersonaPill({
@@ -27,12 +27,11 @@ export function PersonaPill({
   photoSrc,
   role,
   colorClass,
-  issues,
   selected,
   selectionMode,
   onSelect,
+  onRemove,
 }: PersonaPillProps) {
-  const hasIssues = issues > 0;
   const actionLabel =
     selectionMode === 'single'
       ? selected
@@ -42,13 +41,19 @@ export function PersonaPill({
         ? 'Selected'
         : 'Select';
   return (
-    <button
-      type="button"
-      className={`person ${colorClass}${selected ? ' selected' : ''}${hasIssues ? ' has-issues' : ''}`}
+    <article
+      className={`person ${colorClass}${selected ? ' selected' : ''}`}
       data-person={id}
-      aria-pressed={selected}
-      onClick={() => onSelect(id)}
+      aria-label={name}
     >
+      <button
+        type="button"
+        className="person-remove"
+        aria-label={`Remove ${name} from attached perspectives`}
+        onClick={() => onRemove(id)}
+      >
+        ×
+      </button>
       <span className="person-photo-frame">
         <span className="person-heading">
           <strong>{name}</strong>
@@ -61,19 +66,25 @@ export function PersonaPill({
       </span>
       <span className="person-footer">
         <span className="person-identity">
-          <span className="emoji person-identity-emoji">{emoji}</span>
+          {photoSrc ? (
+            <img src={photoSrc} alt="" className="person-avatar" />
+          ) : (
+            <span className="emoji person-identity-emoji">{emoji}</span>
+          )}
           <span className="person-details">
             <span className="person-role">{role}</span>
-            <span
-              className={hasIssues ? 'signal' : undefined}
-              aria-label={`${issues} potential ${issues === 1 ? 'issue' : 'issues'}`}
-            >
-              {hasIssues ? `${issues} ${issues === 1 ? 'issue' : 'issues'}` : 'No issues'}
-            </span>
           </span>
         </span>
-        <span className="person-action">{actionLabel}</span>
+        <button
+          type="button"
+          className="person-action"
+          aria-label={`${actionLabel} ${name}`}
+          aria-pressed={selected}
+          onClick={() => onSelect(id)}
+        >
+          {actionLabel}
+        </button>
       </span>
-    </button>
+    </article>
   );
 }

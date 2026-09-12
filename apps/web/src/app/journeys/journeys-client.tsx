@@ -61,7 +61,8 @@ export default function JourneysClient() {
 }
 
 function JourneysContent() {
-  const { mode, setMode, setPlaying } = useJourneyView();
+  const { mode, setMode, setPlaying, selectedPersonId, setSelectedPersonId, setCaptureMessage } =
+    useJourneyView();
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -72,6 +73,19 @@ function JourneysContent() {
     personId: string;
     stageIndex: number;
   } | null>(null);
+
+  const toggleAttached = (id: string) => {
+    const next = new Set(attachedPersonaIds);
+    if (next.has(id)) {
+      next.delete(id);
+      if (selectedPersonId === id) setSelectedPersonId(next.values().next().value ?? null);
+    } else {
+      next.add(id);
+    }
+    setAttachedPersonaIds(next);
+    setPlaying(false);
+    setCaptureMessage('');
+  };
 
   const findingPerson = findingOpen ? personaForFinding(findingOpen) : undefined;
   const findingStageIndex = findingOpen ? (stageIndexForFinding(findingOpen) ?? 0) : 0;
@@ -95,7 +109,11 @@ function JourneysContent() {
   return (
     <>
       <div className="perspective-panel">
-        <PersonaShelfSection onOpenLibrary={openLibrary} />
+        <PersonaShelfSection
+          onOpenLibrary={openLibrary}
+          attachedPersonaIds={attachedPersonaIds}
+          onRemove={toggleAttached}
+        />
       </div>
       <div className="journey-experience">
         <JourneyViewSwitch mode={mode} onChange={setMode} />
@@ -131,17 +149,7 @@ function JourneysContent() {
           photoSrc: PERSONA_PHOTO_SRC[persona.name] ?? '',
           attached: attachedPersonaIds.has(persona.id),
         }))}
-        onToggleAttached={(id) =>
-          setAttachedPersonaIds((previous) => {
-            const next = new Set(previous);
-            if (next.has(id)) {
-              next.delete(id);
-            } else {
-              next.add(id);
-            }
-            return next;
-          })
-        }
+        onToggleAttached={toggleAttached}
       />
       {/* Ports the prototype's plain step detail dialog (a step with no finding) — purely
           informational text with no form/interactive content, same as the prototype's version,
@@ -157,24 +165,30 @@ function JourneysContent() {
   );
 }
 
-function PersonaShelfSection({ onOpenLibrary }: { onOpenLibrary: () => void }) {
+function PersonaShelfSection({
+  onOpenLibrary,
+  attachedPersonaIds,
+  onRemove,
+}: {
+  onOpenLibrary: () => void;
+  attachedPersonaIds: Set<string>;
+  onRemove: (id: string) => void;
+}) {
   const { mode, selectedPersonId, setSelectedPersonId, setPlaying, setCaptureMessage } =
     useJourneyView();
 
-  const people: PersonaShelfPerson[] = personas.map((persona) => {
-    const findingCount = STAGE_NAMES.filter((_, stageIndex) =>
-      Boolean(findingAt(CANONICAL_RUN.id, persona.id, stageIndex)),
-    ).length;
-    return {
-      id: persona.id,
-      name: persona.name,
-      emoji: persona.emoji,
-      photoSrc: PERSONA_PHOTO_SRC[persona.name],
-      role: persona.goal,
-      colorClass: PERSONA_COLOR_CLASS[persona.name] ?? 'peach',
-      issues: findingCount,
-    };
-  });
+  const people: PersonaShelfPerson[] = personas
+    .filter((persona) => attachedPersonaIds.has(persona.id))
+    .map((persona) => {
+      return {
+        id: persona.id,
+        name: persona.name,
+        emoji: persona.emoji,
+        photoSrc: PERSONA_PHOTO_SRC[persona.name],
+        role: persona.goal,
+        colorClass: PERSONA_COLOR_CLASS[persona.name] ?? 'peach',
+      };
+    });
 
   const handleSelect = (id: string) => {
     // Mirrors prototype: in Live mode, clicking always selects (never deselects); in Overview,
@@ -195,6 +209,7 @@ function PersonaShelfSection({ onOpenLibrary }: { onOpenLibrary: () => void }) {
       selectionMode={mode === 'live' ? 'single' : 'toggle'}
       onSelect={handleSelect}
       onOpenLibrary={onOpenLibrary}
+      onRemove={onRemove}
       liveCopy={mode === 'live'}
     />
   );
