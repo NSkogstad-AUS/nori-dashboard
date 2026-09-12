@@ -7,6 +7,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nori
+          POSTGRES_PASSWORD: nori
+          POSTGRES_DB: nori
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nori -d nori"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://nori:nori@localhost:5432/nori
     steps:
       - uses: actions/checkout@v4
 
@@ -23,5 +39,9 @@ jobs:
 
       - run: npm run build
 
-      # No test step yet — no tests exist in Phase 1. tests/ get wired in starting Phase 4
-      # (integration/e2e per the implementation plan's phase checklist).
+      - run: npm run db:migrate
+
+      - run: npm run test:integration
+
+      # tests/e2e and tests/fixtures/site are still placeholders (Phase 4+ populates them per
+      # the implementation plan's phase checklist) — only the integration suite runs so far.
