@@ -215,6 +215,9 @@ Both satisfied — see [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 6 for verifi
 
 Implement this before letting a model control arbitrary navigation.
 
+Detailed working plan: [PHASE_4_PLAN.md](./PHASE_4_PLAN.md). Work through that document's
+checklist; the items below are the summary view.
+
 - [ ] Build an owned fixture site with clear success paths, broken links, a confusing CTA, keyboard-focus issues, and delayed/error pages.
 - [ ] Start one browser job in an isolated environment with a fresh browser context.
 - [ ] Restrict navigation and outbound traffic to approved public origins or explicitly isolated development fixtures.

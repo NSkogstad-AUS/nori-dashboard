@@ -45,6 +45,7 @@ export const personaDeviceSettingsSchema = z.object({
   userAgent: z.string().min(1),
   reducedMotion: z.boolean().default(false),
 });
+export type PersonaDeviceSettings = z.infer<typeof personaDeviceSettingsSchema>;
 
 export const personaSchema = z.object({
   id: z.string().uuid(),
@@ -110,8 +111,10 @@ export const stepActionSchema = z.enum([
   'capture',
   'finish',
 ]);
+export type StepAction = z.infer<typeof stepActionSchema>;
 
 export const stepOutcomeSchema = z.enum(['success', 'error', 'blocked']);
+export type StepOutcome = z.infer<typeof stepOutcomeSchema>;
 
 export const stepSchema = z.object({
   id: z.string().uuid(),
@@ -128,6 +131,7 @@ export const stepSchema = z.object({
 export type Step = z.infer<typeof stepSchema>;
 
 export const artifactContentTypeSchema = z.enum(['image/png', 'image/jpeg']);
+export type ArtifactContentType = z.infer<typeof artifactContentTypeSchema>;
 
 export const artifactSchema = z.object({
   id: z.string().uuid(),
