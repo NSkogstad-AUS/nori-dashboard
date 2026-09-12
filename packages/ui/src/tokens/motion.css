@@ -95,3 +95,24 @@
       gap 360ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .people {
+    transition: grid-template-columns 800ms cubic-bezier(0.44, 0, 0.56, 1);
+  }
+
+  .person-portrait-left {
+    transition: width 800ms cubic-bezier(0.44, 0, 0.56, 1);
+  }
+
+  .person-profile {
+    transition:
+      opacity 250ms ease,
+      transform 400ms ease,
+      visibility 250ms;
+  }
+
+  .people-focused .person.selected .person-profile {
+    transition-delay: 350ms;
+  }
+}

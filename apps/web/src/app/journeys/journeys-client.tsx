@@ -206,6 +206,7 @@ function PersonaShelfSection({
         emoji: persona.emoji,
         photoSrc: PERSONA_PHOTO_SRC[persona.name],
         role: persona.goal,
+        behavior: persona.behavior,
         colorClass: PERSONA_COLOR_CLASS[persona.name] ?? 'peach',
       };
     });

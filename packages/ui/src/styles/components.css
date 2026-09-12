@@ -2806,3 +2806,118 @@ form > .pill {
     min-height: 0;
   }
 }
+
+/* Selecting a perspective opens its description within the portrait surface. */
+.people {
+  container-type: inline-size;
+}
+
+.person-photo-frame {
+  aspect-ratio: auto;
+  height: clamp(250px, 28cqw, 350px);
+}
+
+.person-portrait-left {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+}
+
+.person-portrait-select {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.person-portrait-select:focus-visible {
+  outline-offset: -4px;
+}
+
+.person-profile {
+  position: absolute;
+  inset: 0 0 0 46%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: #202020;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(16px);
+}
+
+.person-profile strong {
+  font-size: clamp(17px, 1.5vw, 22px);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.person-profile > span {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.people-focused .person.selected .person-portrait-left {
+  width: 46%;
+}
+
+.people-focused .person.selected .person-profile {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.people-focused .person:not(.selected) .person-heading {
+  left: 8px;
+  right: 8px;
+}
+
+.people-focused .person:not(.selected) .person-heading strong {
+  font-size: 22px;
+}
+
+@media (min-width: 1101px) {
+  .people:not(.people-compact) {
+    grid-template-columns: var(--persona-columns);
+  }
+
+  .people-focused .person:not(.selected) .person-details {
+    display: none;
+  }
+
+  .people-focused .person:not(.selected) .person-action {
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .people:not(.people-compact) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .people-focused .person.selected {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 540px) {
+  .person-profile {
+    padding: 16px 12px;
+    gap: 8px;
+  }
+
+  .person-profile > span {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .people-focused .person.selected .person-heading {
+    left: 8px;
+    right: 8px;
+  }
+}

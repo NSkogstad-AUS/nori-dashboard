@@ -11,6 +11,7 @@ export interface PersonaShelfPerson {
   emoji: string;
   photoSrc?: string;
   role: string;
+  behavior: string;
   colorClass: string;
 }
 
@@ -31,6 +32,15 @@ export function PersonaShelf({
 }: PersonaShelfProps) {
   const [compact, setCompact] = useState(false);
   const cardsId = useId();
+  const focused = !compact && people.some((person) => person.id === selectedPersonId);
+  const columns = people.map((person) =>
+    focused && person.id === selectedPersonId ? 'minmax(0, 3fr)' : 'minmax(0, 1fr)',
+  );
+  if (people.length < 4) columns.push('minmax(0, 1fr)');
+  const selectPerson = (id: string) => {
+    if (compact) setCompact(false);
+    onSelect(id);
+  };
   return (
     <div className="persona-shelf">
       <div className="shelf-header">
@@ -58,7 +68,11 @@ export function PersonaShelf({
           </svg>
         </button>
       </div>
-      <div id={cardsId} className={`people${compact ? ' people-compact' : ''}`}>
+      <div
+        id={cardsId}
+        className={`people${compact ? ' people-compact' : ''}${focused ? ' people-focused' : ''}`}
+        style={{ '--persona-columns': columns.join(' ') } as React.CSSProperties}
+      >
         {people.map((person) => (
           <PersonaPill
             key={person.id}
@@ -67,10 +81,11 @@ export function PersonaShelf({
             emoji={person.emoji}
             photoSrc={person.photoSrc}
             role={person.role}
+            behavior={person.behavior}
             colorClass={person.colorClass}
             selected={selectedPersonId === person.id}
             selectionMode={selectionMode}
-            onSelect={onSelect}
+            onSelect={selectPerson}
             compact={compact}
           />
         ))}

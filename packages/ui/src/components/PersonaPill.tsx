@@ -7,6 +7,7 @@ export interface PersonaPillProps {
   /** When provided, rendered in place of the emoji avatar. */
   photoSrc?: string;
   role: string;
+  behavior: string;
   colorClass: string;
   selected: boolean;
   /**
@@ -26,6 +27,7 @@ export function PersonaPill({
   emoji,
   photoSrc,
   role,
+  behavior,
   colorClass,
   selected,
   selectionMode,
@@ -49,14 +51,28 @@ export function PersonaPill({
       <div className="person-portrait-reveal" aria-hidden={compact}>
         <div className="person-portrait-clip">
           <span className="person-photo-frame">
-            <span className="person-heading">
-              <strong>{name}</strong>
+            <button
+              type="button"
+              className="person-portrait-select"
+              aria-label={`${actionLabel} ${name}`}
+              aria-pressed={selected}
+              tabIndex={compact ? -1 : 0}
+              onClick={() => onSelect(id)}
+            />
+            <span className="person-portrait-left">
+              <span className="person-heading">
+                <strong>{name}</strong>
+              </span>
+              {photoSrc ? (
+                <img src={photoSrc} alt="" className="person-photo" />
+              ) : (
+                <span className="emoji">{emoji}</span>
+              )}
             </span>
-            {photoSrc ? (
-              <img src={photoSrc} alt="" className="person-photo" />
-            ) : (
-              <span className="emoji">{emoji}</span>
-            )}
+            <span className="person-profile" aria-hidden={!selected || compact}>
+              <strong>{role}</strong>
+              <span>{behavior}</span>
+            </span>
           </span>
         </div>
       </div>
