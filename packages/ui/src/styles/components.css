@@ -556,11 +556,16 @@ main {
 .person-photo {
   position: absolute;
   bottom: 0;
+  /* Crop endpoints depend on the stable shelf, never the card's animated width.
+     The source is 2:1, with the subject centered at 28% of its width. */
+  left: calc(12.5cqw - 0.375 * var(--space-sm) - 13px - clamp(140px, 15.68cqw, 196px));
   display: block;
-  width: 100%;
+  width: clamp(500px, 56cqw, 700px);
+  min-width: 100%;
+  max-width: none;
   height: 100%;
   object-fit: cover;
-  object-position: 18% center;
+  object-position: left center;
 }
 
 .emoji {
@@ -2837,7 +2842,9 @@ form > .pill {
 
 .person-profile {
   position: absolute;
-  inset: 0 0 0 50%;
+  inset: 0 auto 0 50%;
+  /* Use the shelf's stable width, not the card's animated width, so copy never rewraps. */
+  width: calc(25cqw - 0.75 * var(--space-sm) - 13px);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -2866,7 +2873,7 @@ form > .pill {
 }
 
 .people-focused .person.selected .person-photo {
-  object-position: left center;
+  left: 0;
 }
 
 .people-focused .person.selected .person-profile {
@@ -2885,6 +2892,10 @@ form > .pill {
 }
 
 @media (min-width: 1101px) {
+  .people-focused .person:not(.selected) .person-photo {
+    left: calc(8.333333cqw - 0.25 * var(--space-sm) - 13px - clamp(140px, 15.68cqw, 196px));
+  }
+
   .people:not(.people-compact) {
     grid-template-columns: var(--persona-columns);
   }
@@ -2899,6 +2910,14 @@ form > .pill {
 }
 
 @media (max-width: 1100px) {
+  .person-photo {
+    left: calc(25cqw - 0.25 * var(--space-sm) - 13px - clamp(140px, 15.68cqw, 196px));
+  }
+
+  .person-profile {
+    width: calc(50cqw - 13px);
+  }
+
   .people:not(.people-compact) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
