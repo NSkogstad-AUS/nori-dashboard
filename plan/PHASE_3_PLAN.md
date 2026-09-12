@@ -18,10 +18,13 @@ phase where data genuinely persists and cross-tenant access is actually enforced
 modeled in a schema.
 
 **In scope:**
-- Authentication via Clerk, using **Clerk Organizations** as Nori's workspace concept.
+- Authentication via Clerk. Each Clerk user gets exactly one personal Nori workspace — no
+  organizations, invites, or multi-user membership (see the workspace-model decision below; this
+  was originally built on Clerk Organizations and was reverted per explicit user request to keep
+  things local/simple — see the 2026-09-12 session note "Organizations removed").
 - A DB query/repository layer in `packages/db` for workspaces and websites.
 - API routes and a Server Component conversion for website creation/listing.
-- A cross-workspace isolation test proving one org can never read another org's data.
+- A cross-workspace isolation test proving one user's workspace can never read another's data.
 - Fixing a schema drift between `packages/contracts` and the Postgres migration.
 
 **Explicitly out of scope for this phase:**
@@ -38,15 +41,19 @@ modeled in a schema.
 | Decision | Resolution |
 | --- | --- |
 | Auth provider | Clerk (confirmed Phase 0) |
-| Workspace model | **Clerk Organizations** = Nori workspaces. `orgId` is the workspace identifier; Clerk owns membership/invite/role UI and logic. Nori's `workspaces`/`memberships` tables become a thin sync target keyed by `orgId`, not the primary source of truth for membership. |
-| Local environment | Real Postgres via the existing `docker-compose.yml` (already scaffolded in Phase 1). Clerk itself is wired up correctly in code, but real sign-in requires the user's own Clerk app + API keys after this session — cannot be created or verified end-to-end here. |
+| Workspace model | **Superseded 2026-09-12.** One personal workspace per Clerk user, auto-created on first sign-in (`workspaces.clerk_user_id`, resolved via `userId` from `auth()`). No organizations, no invites, no multi-user membership — Nori has no team/collaboration concept at this stage. Originally built on Clerk Organizations (`orgId` as the workspace identifier); reverted per explicit user request ("dont do organisations") to keep local dev simple — see the session note below for what changed. |
+| Local environment | Real Postgres, run natively on the developer's machine rather than via the project's `docker-compose.yml` (see the Phase 3 session notes below — a pre-existing native Postgres on port 5432 silently intercepted Docker's, so native was chosen instead and the local `nori`/`nori` role+database is created directly on it). `scripts/setup.sh` automates this. Clerk itself is wired up correctly in code; real sign-in requires the user's own Clerk app + API keys (via `npx clerk@latest init`, run from `apps/web/`). |
 | Fixture transition | Websites fully replace fixture reads with real DB-backed data (the literal Phase 3 gate). Runs stay fixture-backed for now (see scope above). Personas stay fixture-backed. |
 | Schema drift | `packages/contracts`'s `runSchema` is missing `cancelRequestState`, even though `001_init.sql`'s `runs` table has a `cancel_request_state` column. Fixed as part of this phase, before building the API layer on top of it. |
 
-**Why Clerk Organizations over hand-rolled workspaces:** Nori's `workspaces`/`memberships` tables
-(migrated in Phase 1) map almost directly onto Clerk's org/membership model. Using Clerk
-Organizations means invite flows, role management, and the org-switcher UI come for free instead
-of being hand-built and maintained — the standard pattern for this shape of B2B multi-tenant app.
+**Why the workspace model changed:** Clerk Organizations were originally chosen so invite flows,
+role management, and an org-switcher UI would come for free rather than being hand-built — the
+standard pattern for a B2B multi-tenant app. In practice this meant a first-time signed-in user
+with no Clerk Organization hit a hard "No active organization selected" error with no in-app way
+to recover, which needed its own onboarding flow (`/create-organization` page + a middleware
+redirect) just to unblock local development. The user asked to drop organizations entirely rather
+than build and maintain that onboarding path — Nori doesn't need multi-user workspaces yet, so a
+workspace is now just "this Clerk user's data," with no separate creation/switching step at all.
 
 ## 3. Current-state findings (verified this session)
 
@@ -292,3 +299,48 @@ Restating the master plan's Phase 3 gate plus concrete, checkable criteria:
   explicit gate: "Implement this before letting a model control arbitrary navigation." A natural
   follow-up before or alongside Phase 4 (not blocking it) is real Clerk credential setup so this
   phase's work can finally be exercised end-to-end in a browser.
+
+### 2026-09-12 (continued) — Organizations removed, local dev simplified
+
+- Trigger: after wiring up Clerk sign-in for real, a first-time user with no Clerk Organization
+  hit `NoActiveOrganizationError` with no in-app way to recover, so an in-app org creation/
+  switcher flow was built (`/create-organization` page using Clerk's `<CreateOrganization>`, a
+  middleware redirect for signed-in-but-orgless users, an `<OrganizationSwitcher>` in the sidebar
+  footer). The user then asked to drop organizations entirely rather than keep that onboarding
+  path — see "Why the workspace model changed" in section 2 above.
+- Changed areas: `apps/web/src/lib/workspace-auth.ts` (`requireWorkspace()` now only needs
+  `userId` from `auth()` plus the user's name/email from `currentUser()` — no more
+  `clerkClient().organizations` lookup; deleted `NoActiveOrganizationError`, only
+  `UnauthorizedError` remains); `apps/web/src/middleware.ts` (back to a plain sign-in gate — no
+  org check, no `/create-organization` exclusion); `apps/web/src/app/create-organization/`
+  (deleted); `apps/web/src/app/app-shell-frame.tsx` and `packages/ui/src/components/Sidebar.tsx`
+  (the `<OrganizationSwitcher>`/`workspaceSwitcher` slot added for this, then removed — back to
+  the plain static "Your workspace" footer); `apps/web/src/app/api/websites/route.ts` and
+  `.../[id]/route.ts` (dropped the now-impossible `NoActiveOrganizationError` → 403 branch);
+  `packages/db/src/queries/workspaces.ts` (`ensureWorkspace(userId, name)` instead of
+  `ensureWorkspace(orgId, name)`); `packages/db/src/migrations/003_clerk_org_link.sql` renamed to
+  `003_clerk_user_link.sql` (`clerk_user_id` column instead of `clerk_org_id` — edited in place
+  rather than adding a new migration on top, since it had only existed locally this session and
+  was never applied anywhere but this machine's dev database); `tests/integration/
+  workspace-isolation.test.ts` (fake `user_...` ids instead of `org_...` ids); `.env.example` and
+  `plan/IMPLEMENTATION_PLAN.md`'s decision log updated to match.
+- **Local-only consequence, handled**: renaming the migration file meant the local dev database's
+  `schema_migrations` history (keyed by filename) no longer matched. Since no real data existed
+  yet (the org-creation block had prevented anyone from reaching the point of creating a website),
+  the simplest fix was dropping and recreating the local `nori` database from scratch, then
+  re-running `npm run db:migrate` — rather than layering a rename migration on top of a
+  since-abandoned column. This is safe precisely because it's local/pre-real-data; the same move
+  would not be appropriate once a real deployed database has this migration applied.
+- Checks actually run: `npm run typecheck`/`lint`/`build` all pass at the repo root (build output
+  confirms `/create-organization` no longer appears in the route list). Re-ran
+  `npm run db:migrate` against the freshly recreated local database — all three migrations
+  (`001_init.sql`, `002_queue.sql`, `003_clerk_user_link.sql`) applied cleanly. Re-ran
+  `npm run test:integration` — all 4 cross-workspace isolation assertions still pass against the
+  renamed column. Restarted the dev server and confirmed `/create-organization` 404s (route no
+  longer exists) and the app otherwise starts clean.
+- Failures/limitations: same as before — real Clerk sign-in still cannot be exercised end-to-end
+  in this environment without the user driving a real browser session with cookies; the change
+  itself is verified structurally (typecheck/lint/build/tests) but not yet click-tested by a human
+  in a browser as of this note.
+- Next concrete task: unchanged — Phase 4 (safe deterministic browser execution), or real Clerk
+  credential setup as a non-blocking follow-up, per the note above.
