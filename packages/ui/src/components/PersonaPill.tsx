@@ -6,6 +6,7 @@ export interface PersonaPillProps {
   emoji: string;
   /** When provided, rendered in place of the emoji avatar. */
   photoSrc?: string;
+  widePhotoSrc?: string;
   role: string;
   behavior: string;
   colorClass: string;
@@ -26,6 +27,7 @@ export function PersonaPill({
   name,
   emoji,
   photoSrc,
+  widePhotoSrc,
   role,
   behavior,
   colorClass,
@@ -59,15 +61,15 @@ export function PersonaPill({
               tabIndex={compact ? -1 : 0}
               onClick={() => onSelect(id)}
             />
+            {photoSrc ? (
+              <img src={widePhotoSrc ?? photoSrc} alt="" className="person-photo" />
+            ) : (
+              <span className="emoji">{emoji}</span>
+            )}
             <span className="person-portrait-left">
               <span className="person-heading">
                 <strong>{name}</strong>
               </span>
-              {photoSrc ? (
-                <img src={photoSrc} alt="" className="person-photo" />
-              ) : (
-                <span className="emoji">{emoji}</span>
-              )}
             </span>
             <span className="person-profile" aria-hidden={!selected || compact}>
               <strong>{role}</strong>
