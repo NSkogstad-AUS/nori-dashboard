@@ -4,8 +4,8 @@
 // `changeFrame()`, `showFinding()`, and the personas-library dialog action. See
 // plan/PHASE_2_PLAN.md section 6.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   JourneyViewSwitch,
   PersonaShelf,
@@ -18,6 +18,8 @@ import {
   type PersonaShelfPerson,
 } from '@nori/ui';
 import { JourneyViewProvider, useJourneyView } from '../../context/journey-view-context';
+import { useWorkspace } from '../../context/workspace-context';
+import { useNewRunDialog } from '../../context/new-run-dialog-context';
 import { personas, runs } from '../../fixtures/index';
 import {
   STAGE_NAMES,
@@ -28,7 +30,15 @@ import {
   stageIndexForFinding,
 } from '../../lib/journey-derivations';
 import { validateWebsiteUrl } from '../../lib/validate-url';
-import type { Finding, PersonaReport, PersonaSession, Run, SessionState, Step } from '@nori/contracts';
+import type {
+  Finding,
+  Persona,
+  PersonaReport,
+  PersonaSession,
+  Run,
+  SessionState,
+  Step,
+} from '@nori/contracts';
 
 const PERSONA_COLOR_CLASS: Record<string, string> = {
   Alex: 'peach',
@@ -58,9 +68,12 @@ export default function JourneysClient() {
 }
 
 function JourneysContent() {
-  const { mode, setMode, setPlaying, setCaptureMessage } = useJourneyView();
+  const { mode, setMode, setPlaying, setCaptureMessage, selectedPersonId } = useJourneyView();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const runId = searchParams.get('runId');
+  const { selectedWebsiteId } = useWorkspace();
+  const { openDialog: openNewRun } = useNewRunDialog();
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -68,6 +81,7 @@ function JourneysContent() {
   const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
     () => new Set(personas.map((persona) => persona.id)),
   );
+  const [runPending, setRunPending] = useState(false);
 
   const toggleAttached = (id: string) => {
     const next = new Set(attachedPersonaIds);
@@ -91,6 +105,71 @@ function JourneysContent() {
     setPlaying(false);
     setLibraryOpen(true);
   };
+
+  const announce = (message: string) => {
+    const announcement = document.getElementById('announcement');
+    if (announcement) announcement.textContent = message;
+  };
+
+  // Starts a real run from what this page already holds: the URL typed into step 1 and the one
+  // persona selected on the shelf in step 2 — one run, one persona, so the shelf's existing
+  // single-selection is exactly the run's perspective. Neither is re-asked for.
+  //
+  // The shelf's personas come from apps/web/src/fixtures, whose ids are per-process
+  // crypto.randomUUID() values that no real personas row matches (see app-shell-frame.tsx), so
+  // the request has to carry a DB persona id — fetched here and matched to the selected shelf
+  // entry by name. Anything that can't be resolved from page state (no URL yet, nobody selected,
+  // no website, no name match in the DB) falls through to the shared NewRunDialog rather than
+  // failing silently, so the button always leads somewhere.
+  const beginRun = useCallback(async () => {
+    const validUrl = validateWebsiteUrl(websiteUrl);
+    const selectedPersona = personas.find((persona) => persona.id === selectedPersonId);
+    if (!validUrl || !selectedWebsiteId || !selectedPersona) {
+      openNewRun();
+      return;
+    }
+
+    setPlaying(false);
+    setRunPending(true);
+    try {
+      const personasResponse = await fetch('/api/personas');
+      if (!personasResponse.ok) throw new Error('Could not load personas.');
+      const { items: dbPersonas }: { items: Persona[] } = await personasResponse.json();
+      const dbPersona = dbPersonas.find((persona) => persona.name === selectedPersona.name);
+      if (!dbPersona) {
+        openNewRun();
+        return;
+      }
+
+      const response = await fetch('/api/runs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          websiteId: selectedWebsiteId,
+          url: validUrl.href,
+          task: 'Explore the site and report anything that gets in the way of completing a typical task.',
+          personaIds: [dbPersona.id],
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      if (!response.ok) {
+        const error: { message?: string } = await response.json().catch(() => ({}));
+        announce(error.message ?? 'Could not start the run.');
+        return;
+      }
+      const { runId: newRunId }: { runId: string } = await response.json();
+      announce('Run started.');
+      // The tracker renders in Overview mode (see the mode/runId branch below), so switch back
+      // to it — otherwise a run started from Live view would start invisibly.
+      setMode('overview');
+      router.push(`/journeys?runId=${newRunId}`);
+    } catch (error) {
+      console.error('Failed to start run', error);
+      announce('Could not start the run.');
+    } finally {
+      setRunPending(false);
+    }
+  }, [websiteUrl, selectedPersonId, selectedWebsiteId, openNewRun, setPlaying, setMode, router]);
 
   return (
     <>
@@ -129,10 +208,18 @@ function JourneysContent() {
           <WebsitePreview rawUrl={websiteUrl} />
         </section>
         <div className="journey-step perspective-panel">
-          <PersonaShelfSection onOpenLibrary={openLibrary} attachedPersonaIds={attachedPersonaIds} />
+          <PersonaShelfSection
+            onOpenLibrary={openLibrary}
+            attachedPersonaIds={attachedPersonaIds}
+          />
         </div>
         <div className="journey-step journey-experience">
-          <JourneyViewSwitch mode={mode} onChange={setMode} />
+          <JourneyViewSwitch
+            mode={mode}
+            onChange={setMode}
+            onBeginRun={() => void beginRun()}
+            beginRunPending={runPending}
+          />
           {mode === 'live' ? (
             <LiveView onOpenFinding={openFinding} />
           ) : runId ? (

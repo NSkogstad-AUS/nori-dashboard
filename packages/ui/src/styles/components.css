@@ -786,6 +786,42 @@ main {
   background: var(--ink);
 }
 
+/* The run action shares the pill row with the two view toggles but isn't one of them: it's an
+   action, not a view state, so it carries the coral accent (matching .accent) instead of the
+   toggles' pressed/unpressed ink treatment, with a hairline divider separating the two groups.
+   Scoped entirely to .begin-run — the toggles' own appearance is unchanged. */
+.view-switch .pill.begin-run {
+  margin-left: 5px;
+  background: var(--coral);
+  border-color: #ef9a7f;
+  color: #382d29;
+  font-weight: 600;
+}
+
+.view-switch .pill.begin-run::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1px;
+  height: 20px;
+  background: var(--line);
+}
+
+.view-switch .pill.begin-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--coral) 88%, var(--ink));
+}
+
+.view-switch .pill.begin-run:disabled {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--muted);
+  font-weight: 500;
+  opacity: 0.65;
+  box-shadow: none;
+}
+
 .journey-experience {
   position: relative;
   padding-top: 70px;
