@@ -26,6 +26,7 @@ import {
   sessionForPersonaInRun,
   stageIndexForFinding,
 } from '../../lib/journey-derivations';
+import { validateWebsiteUrl } from '../../lib/validate-url';
 import type { Finding } from '@nori/contracts';
 
 const PERSONA_COLOR_CLASS: Record<string, string> = {
@@ -122,6 +123,7 @@ function JourneysContent() {
               spellCheck={false}
             />
           </div>
+          <WebsitePreview rawUrl={websiteUrl} />
         </section>
         <div className="journey-step perspective-panel">
           <PersonaShelfSection onOpenLibrary={openLibrary} attachedPersonaIds={attachedPersonaIds} />
@@ -160,6 +162,63 @@ function JourneysContent() {
         onToggleAttached={toggleAttached}
       />
     </>
+  );
+}
+
+function WebsitePreview({ rawUrl }: { rawUrl: string }) {
+  const validUrl = useMemo(() => validateWebsiteUrl(rawUrl), [rawUrl]);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'loaded' | 'blocked'>('idle');
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounces the raw input so a preview attempt doesn't fire on every keystroke, then loads
+  // a real <iframe> of the entered site. Many real sites send X-Frame-Options/CSP
+  // frame-ancestors headers that silently block embedding — no load/error event fires for that,
+  // the frame just stays blank — so a load timeout is the only reliable signal something went
+  // wrong, alongside the iframe's own onLoad for the sites that do allow it.
+  useEffect(() => {
+    if (!validUrl) {
+      setStatus('idle');
+      return;
+    }
+    setStatus('loading');
+    const debounce = setTimeout(() => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => {
+        setStatus((current) => (current === 'loading' ? 'blocked' : current));
+      }, 4000);
+    }, 500);
+    return () => {
+      clearTimeout(debounce);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [validUrl]);
+
+  if (!validUrl) return null;
+
+  return (
+    <div className="journey-website-preview">
+      {status === 'blocked' ? (
+        <div className="journey-website-preview-blocked">
+          <span>This site can&rsquo;t be embedded in a preview.</span>
+          <a href={validUrl.href} target="_blank" rel="noreferrer noopener">
+            Open {validUrl.hostname} in a new tab ↗
+          </a>
+        </div>
+      ) : (
+        <iframe
+          key={validUrl.href}
+          src={validUrl.href}
+          title={`Preview of ${validUrl.hostname}`}
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          referrerPolicy="no-referrer"
+          onLoad={() => {
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            setStatus('loaded');
+          }}
+          onError={() => setStatus('blocked')}
+        />
+      )}
+    </div>
   );
 }
 
