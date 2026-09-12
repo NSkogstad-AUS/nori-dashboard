@@ -184,6 +184,9 @@ checklist; the items below are the summary view.
 
 ### Phase 3 — Identity, database, and website tracking
 
+Detailed working plan: [PHASE_3_PLAN.md](./PHASE_3_PLAN.md). Work through that document's
+checklist; the items below are the summary view.
+
 - [ ] Implement authentication and workspace membership checks.
 - [ ] Add migrations for the entities above, foreign keys, indexes, and uniqueness constraints.
 - [ ] Build website creation, validation, listing, and detail views.
@@ -342,6 +345,7 @@ The first vertical slice is **one task, one persona, one browser session, one ev
 | Framework, queue, database, storage | Confirmed | Section 4 defaults: Next.js + TS web app, Node/Playwright worker, PostgreSQL, DB-backed durable queue, local storage for artifacts in dev (object storage later) |
 | Model provider and model | Confirmed | Claude (Anthropic) via the Claude API, tool use for action selection |
 | Authentication provider | Confirmed | Managed auth service (Clerk/Auth.js), server-side workspace authorization |
+| Workspace model (Phase 3) | Confirmed | Clerk Organizations = Nori workspaces; `orgId` is the workspace identifier. Clerk owns membership/invite/role UI and logic; Nori's own `workspaces`/`memberships` tables become a thin sync target keyed by `orgId`, not the primary source of truth for membership. See [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 2. |
 | First task and authorized-site policy | Confirmed | First task: discover and compare a product's public plans. Authorization: owned fixtures only for first release, no real external site scanning yet |
 | Session limits and cost caps | Confirmed | Per persona session: max 20 actions, 3 min wall-clock, 1 browser context, no downloads/uploads. Per run: hard cost cap ~$0.50 (tokens + browser compute), force-terminate and mark failed on breach |
 | Artifact retention / deletion policy | Confirmed | Screenshots/artifacts retained 7 days, then deleted from storage and DB |

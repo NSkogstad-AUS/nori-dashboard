@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { ClerkProvider } from '@clerk/nextjs';
 import '@nori/ui/src/tokens/tokens.css';
 import '@nori/ui/src/tokens/motion.css';
 import '@nori/ui/src/styles/components.css';
@@ -15,17 +16,19 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body>
-        <WorkspaceProvider>
-          <NewRunDialogProvider>
-            <AppShellFrame>{children}</AppShellFrame>
-          </NewRunDialogProvider>
-        </WorkspaceProvider>
-        {/* Visually-hidden live region for cross-page announcements (e.g. new-run success),
-            matching prototype/index.html's #announcement. */}
-        <div id="announcement" className="sr-only" role="status" />
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={inter.variable}>
+        <body>
+          <WorkspaceProvider>
+            <NewRunDialogProvider>
+              <AppShellFrame>{children}</AppShellFrame>
+            </NewRunDialogProvider>
+          </WorkspaceProvider>
+          {/* Visually-hidden live region for cross-page announcements (e.g. new-run success),
+              matching prototype/index.html's #announcement. */}
+          <div id="announcement" className="sr-only" role="status" />
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

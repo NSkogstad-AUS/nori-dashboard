@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RUN_STATES, SESSION_STATES } from './state-machines.js';
+import { RUN_STATES, SESSION_STATES, CANCEL_REQUEST_STATES } from './state-machines.js';
 
 // Data model from plan/IMPLEMENTATION_PLAN.md section 5.
 // Every tenant-owned record carries a workspaceId; server-side authorization
@@ -66,6 +66,7 @@ export const runLimitsSchema = z.object({
 export type RunLimits = z.infer<typeof runLimitsSchema>;
 
 export const runStateSchema = z.enum(RUN_STATES);
+export const cancelRequestStateSchema = z.enum(CANCEL_REQUEST_STATES);
 
 export const runSchema = z.object({
   id: z.string().uuid(),
@@ -76,6 +77,7 @@ export const runSchema = z.object({
   allowedOrigins: z.array(z.string().url()).min(1),
   limits: runLimitsSchema,
   state: runStateSchema,
+  cancelRequestState: cancelRequestStateSchema,
   idempotencyKey: z.string().min(1),
   costTotalUsd: z.number().nonnegative().default(0),
   createdAt: z.string().datetime(),
