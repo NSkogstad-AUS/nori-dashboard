@@ -99,3 +99,12 @@ export async function failJob(jobId: string, error: string): Promise<void> {
     where id = ${jobId}
   `;
 }
+
+export async function cancelJob(jobId: string, reason: string): Promise<void> {
+  const sql = getDb();
+  await sql`
+    update jobs
+    set status = 'cancelled', last_error = ${reason}, leased_until = null, updated_at = now()
+    where id = ${jobId}
+  `;
+}

@@ -9,14 +9,13 @@ export interface CreateArtifactInput {
   contentType: ArtifactContentType;
   width: number;
   height: number;
-  /** Defaults to 30 days from now — no retention policy has been decided yet; revisit once one
-   *  is (see plan/PHASE_4_PLAN.md — artifact storage is local-filesystem-only for now). */
+  /** Defaults to the product's confirmed seven-day artifact-retention window. */
   expiresAt?: Date;
 }
 
 export async function createArtifact(input: CreateArtifactInput): Promise<Artifact> {
   const sql = getDb();
-  const expiresAt = input.expiresAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const expiresAt = input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const [row] = await sql<Record<string, unknown>[]>`
     insert into artifacts (session_id, step_id, storage_key, content_type, width, height, expires_at)
     values (

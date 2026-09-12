@@ -89,3 +89,11 @@ export const errorPage = shell(
   <p>The server hit an unexpected error rendering this page.</p>
 `,
 );
+
+export const unclickablePage = shell(
+  'Unclickable action',
+  `
+  <h1>Action unavailable</h1>
+  <button id="subscribe-btn" disabled>Subscribe</button>
+`,
+);

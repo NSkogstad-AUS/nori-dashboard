@@ -99,17 +99,17 @@ Keep packages only where useful; a smaller initial scaffold is acceptable. Verif
 
 Every tenant-owned record must carry a workspace identifier; do not rely on the browser to supply or enforce ownership.
 
-| Entity | Required information |
-| --- | --- |
-| Workspace / Membership | Identity, owner/member relationship, access boundary |
-| Website | Workspace, display name, canonical origin, authorization record, timestamps |
-| Persona | Versioned name, emoji, goal-relevant behavior, device/input settings, limitations |
-| Run | Website, URL, task, allowed origins, limits, state, idempotency key, cost totals |
-| Persona session | Run, persona snapshot, attempt, browser/device settings, state, heartbeat |
-| Step | Session, sequence, action, outcome, timestamp, URL before/after, evidence references |
-| Artifact | Session/step, private storage key, content type, dimensions, redaction status, expiry |
-| Finding | Evidence-linked observation, category, severity, confidence, reproduction, recommendation |
-| Run event | Run/session, monotonic sequence, type, safe payload, timestamp |
+| Entity                 | Required information                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| Workspace / Membership | Identity, owner/member relationship, access boundary                                      |
+| Website                | Workspace, display name, canonical origin, authorization record, timestamps               |
+| Persona                | Versioned name, emoji, goal-relevant behavior, device/input settings, limitations         |
+| Run                    | Website, URL, task, allowed origins, limits, state, idempotency key, cost totals          |
+| Persona session        | Run, persona snapshot, attempt, browser/device settings, state, heartbeat                 |
+| Step                   | Session, sequence, action, outcome, timestamp, URL before/after, evidence references      |
+| Artifact               | Session/step, private storage key, content type, dimensions, redaction status, expiry     |
+| Finding                | Evidence-linked observation, category, severity, confidence, reproduction, recommendation |
+| Run event              | Run/session, monotonic sequence, type, safe payload, timestamp                            |
 
 ### State machines
 
@@ -161,7 +161,8 @@ Every event needs a stable ID, run ID, optional session ID, ordered sequence, ti
 - [x] Configure local database, queue, and private artifact storage. _(Postgres via docker-compose; DB-backed `jobs` table with lease/heartbeat columns; local-disk artifact storage dir for dev only, per `.env.example`. Queue polling and object storage are not implemented yet — this only configures the tables/paths, not the runtime logic, which lands in later phases.)_
 - [x] Add health checks for the web process and worker.
 - [x] Establish shared request/response/event schemas and structured error codes.
-- [x] Add CI checks for types, lint, tests, and production build. _(No test step yet — no tests exist to run. CI runs typecheck, lint, and build; a test step will be added once Phase 4 introduces the fixture site and tests/integration coverage.)_
+- [x] Add CI checks for types, lint, tests, and production build. _(CI installs Chromium and runs
+      the Postgres-backed integration suite added in Phase 4.)_
 
 **Gate:** A fresh checkout starts using documented instructions, with no manually edited source files or committed secrets.
 
@@ -188,25 +189,25 @@ Detailed working plan: [PHASE_3_PLAN.md](./PHASE_3_PLAN.md). Work through that d
 checklist; the items below are the summary view.
 
 - [x] Implement authentication and workspace membership checks. _(Clerk; one personal workspace
-  per Clerk user, no multi-user/organization concept; middleware + `requireWorkspace()`
-  resource-level checks in every API route. Originally built on Clerk Organizations, reverted —
-  see the decision log below.)_
+      per Clerk user, no multi-user/organization concept; middleware + `requireWorkspace()`
+      resource-level checks in every API route. Originally built on Clerk Organizations, reverted —
+      see the decision log below.)_
 - [x] Add migrations for the entities above, foreign keys, indexes, and uniqueness constraints.
-  _(Already scaffolded in Phase 1's `001_init.sql`/`002_queue.sql`; Phase 3 added
-  `003_clerk_user_link.sql` and ran all three against real Postgres for the first time.)_
+      _(Already scaffolded in Phase 1's `001_init.sql`/`002_queue.sql`; Phase 3 added
+      `003_clerk_user_link.sql` and ran all three against real Postgres for the first time.)_
 - [x] Build website creation, validation, listing views. _(`NewWebsiteDialog` + `POST
-  /api/websites`, `GET /api/websites`, `websites/page.tsx` as a Server Component.)_ Detail view
-  (`GET /api/websites/:id`) exists as an API route but has no dedicated page UI yet — deferred,
-  not blocking the gate.
+/api/websites`, `GET /api/websites`, `websites/page.tsx` as a Server Component.)_ Detail view
+      (`GET /api/websites/:id`) exists as an API route but has no dedicated page UI yet — deferred,
+      not blocking the gate.
 - [ ] Implement the agreed ownership/authorization process and show its status in the UI.
-  _(`authorization_status` exists in the schema/API response but isn't surfaced in the UI yet —
-  deferred; not required for this phase's literal gate.)_
+      _(`authorization_status` exists in the schema/API response but isn't surfaced in the UI yet —
+      deferred; not required for this phase's literal gate.)_
 - [ ] Load run cards and website counts from the database, not hard-coded examples. _(Explicitly
-  deferred to a later phase — see [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 1's scope
-  boundary; runs stay fixture-backed this phase, only websites moved to real data.)_
+      deferred to a later phase — see [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 1's scope
+      boundary; runs stay fixture-backed this phase, only websites moved to real data.)_
 - [x] Test that one workspace cannot access another workspace's runs, events, or artifacts.
-  _(`tests/integration/workspace-isolation.test.ts`, scoped to websites specifically since runs/
-  events/artifacts aren't real yet — verified to actually catch a broken-isolation regression.)_
+      _(`tests/integration/workspace-isolation.test.ts`, scoped to websites specifically since runs/
+      events/artifacts aren't real yet — verified to actually catch a broken-isolation regression.)_
 
 **Gate:** Websites persist across reloads, and cross-workspace access is rejected server-side.
 Both satisfied — see [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 6 for verification detail.
@@ -218,16 +219,16 @@ Implement this before letting a model control arbitrary navigation.
 Detailed working plan: [PHASE_4_PLAN.md](./PHASE_4_PLAN.md). Work through that document's
 checklist; the items below are the summary view.
 
-- [ ] Build an owned fixture site with clear success paths, broken links, a confusing CTA, keyboard-focus issues, and delayed/error pages.
-- [ ] Start one browser job in an isolated environment with a fresh browser context.
-- [ ] Restrict navigation and outbound traffic to approved public origins or explicitly isolated development fixtures.
-- [ ] Block loopback, private/link-local addresses, cloud metadata endpoints, unsafe schemes, credentials in URLs, and non-approved ports.
-- [ ] Validate redirects and DNS resolution, including IPv6 and rebinding scenarios. Enforce restrictions at the network boundary, not just on the initial URL.
-- [ ] Apply the same outbound restrictions to subresources, popups, WebSockets, and other browser requests; prevent uncontrolled downloads.
-- [ ] Configure timeouts, action limits, memory/CPU limits, and cancellation polling.
-- [ ] Prohibit destructive or externally consequential actions. Only allow safe fixture submissions during development.
-- [ ] Record a deterministic click/scroll/type sequence with real screenshots and structured errors.
-- [ ] Close contexts and destroy worker resources on success, error, timeout, or cancellation.
+- [x] Build an owned fixture site with clear success paths, broken links, a confusing CTA, keyboard-focus issues, and delayed/error pages.
+- [x] Start one browser job in an isolated environment with a fresh browser context.
+- [x] Restrict navigation and outbound traffic to approved public origins or explicitly isolated development fixtures.
+- [x] Block loopback, private/link-local addresses, cloud metadata endpoints, unsafe schemes, credentials in URLs, and non-approved ports.
+- [x] Validate redirects and DNS resolution, including IPv6 and rebinding scenarios. Enforce restrictions at the network boundary, not just on the initial URL.
+- [x] Apply the same outbound restrictions to subresources, popups, WebSockets, and other browser requests; prevent uncontrolled downloads.
+- [x] Configure timeouts, action limits, renderer-process/JavaScript-heap ceilings, and cancellation polling. _(Hard host CPU/memory quotas remain deployment configuration, which this phase explicitly leaves undecided.)_
+- [x] Prohibit destructive or externally consequential actions. Only allow safe fixture submissions during development.
+- [x] Record the fixed navigate → capture → click → capture → finish sequence with real screenshots and structured errors.
+- [x] Close contexts and destroy worker resources on success, error, timeout, or cancellation.
 
 **Gate:** A real browser completes the fixture task and produces inspectable artifacts. Security tests demonstrate blocked internal/private targets before accepting user-submitted URLs.
 
@@ -356,19 +357,19 @@ The first vertical slice is **one task, one persona, one browser session, one ev
 
 ## 9. Decision log
 
-| Decision | Status | Notes |
-| --- | --- | --- |
-| Visual direction | Confirmed | Journey Atlas 01; homepage Soft Spectrum |
-| Overview / selected-persona live view | Confirmed | Keep both floating controls |
-| Framework, queue, database, storage | Confirmed | Section 4 defaults: Next.js + TS web app, Node/Playwright worker, PostgreSQL, DB-backed durable queue, local storage for artifacts in dev (object storage later) |
-| Model provider and model | Confirmed | Claude (Anthropic) via the Claude API, tool use for action selection |
-| Authentication provider | Confirmed | Managed auth service (Clerk/Auth.js), server-side workspace authorization |
-| Workspace model (Phase 3) | Confirmed | One personal workspace per Clerk user, auto-created on first sign-in; `userId` is the workspace identifier (`workspaces.clerk_user_id`). No multi-user/organization concept — reverted from an earlier Clerk-Organizations-as-workspaces design (which required an in-app org creation/switcher flow) per explicit user request to drop organizations entirely. See [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 2. |
-| First task and authorized-site policy | Confirmed | First task: discover and compare a product's public plans. Authorization: owned fixtures only for first release, no real external site scanning yet |
-| Session limits and cost caps | Confirmed | Per persona session: max 20 actions, 3 min wall-clock, 1 browser context, no downloads/uploads. Per run: hard cost cap ~$0.50 (tokens + browser compute), force-terminate and mark failed on breach |
-| Artifact retention / deletion policy | Confirmed | Screenshots/artifacts retained 7 days, then deleted from storage and DB |
-| Live screenshot cadence | Proposed | 2–5 seconds, action-triggered captures, measured under load |
-| Hosting / deployment target | Confirmed | Local-only for Phase 1 (docker-compose); hosting target (Vercel + separate worker host) decided later before Phase 11 staged deployment |
+| Decision                              | Status    | Notes                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Visual direction                      | Confirmed | Journey Atlas 01; homepage Soft Spectrum                                                                                                                                                                                                                                                                                                                                                                            |
+| Overview / selected-persona live view | Confirmed | Keep both floating controls                                                                                                                                                                                                                                                                                                                                                                                         |
+| Framework, queue, database, storage   | Confirmed | Section 4 defaults: Next.js + TS web app, Node/Playwright worker, PostgreSQL, DB-backed durable queue, local storage for artifacts in dev (object storage later)                                                                                                                                                                                                                                                    |
+| Model provider and model              | Confirmed | Claude (Anthropic) via the Claude API, tool use for action selection                                                                                                                                                                                                                                                                                                                                                |
+| Authentication provider               | Confirmed | Managed auth service (Clerk/Auth.js), server-side workspace authorization                                                                                                                                                                                                                                                                                                                                           |
+| Workspace model (Phase 3)             | Confirmed | One personal workspace per Clerk user, auto-created on first sign-in; `userId` is the workspace identifier (`workspaces.clerk_user_id`). No multi-user/organization concept — reverted from an earlier Clerk-Organizations-as-workspaces design (which required an in-app org creation/switcher flow) per explicit user request to drop organizations entirely. See [PHASE_3_PLAN.md](./PHASE_3_PLAN.md) section 2. |
+| First task and authorized-site policy | Confirmed | First task: discover and compare a product's public plans. Authorization: owned fixtures only for first release, no real external site scanning yet                                                                                                                                                                                                                                                                 |
+| Session limits and cost caps          | Confirmed | Per persona session: max 20 actions, 3 min wall-clock, 1 browser context, no downloads/uploads. Per run: hard cost cap ~$0.50 (tokens + browser compute), force-terminate and mark failed on breach                                                                                                                                                                                                                 |
+| Artifact retention / deletion policy  | Confirmed | Screenshots/artifacts retained 7 days, then deleted from storage and DB                                                                                                                                                                                                                                                                                                                                             |
+| Live screenshot cadence               | Proposed  | 2–5 seconds, action-triggered captures, measured under load                                                                                                                                                                                                                                                                                                                                                         |
+| Hosting / deployment target           | Confirmed | Local-only for Phase 1 (docker-compose); hosting target (Vercel + separate worker host) decided later before Phase 11 staged deployment                                                                                                                                                                                                                                                                             |
 
 ## 10. Session handoff
 

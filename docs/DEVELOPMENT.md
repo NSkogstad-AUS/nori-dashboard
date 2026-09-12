@@ -17,7 +17,7 @@ re-run any time.
 
 By default it uses a Postgres server already running natively on your machine (port 5432). If
 you'd rather use docker-compose's isolated Postgres instead, run `npm run setup -- --docker` —
-but note that if you *also* have a native Postgres bound to port 5432, connections will silently
+but note that if you _also_ have a native Postgres bound to port 5432, connections will silently
 go to that instead of the container (this was hit and diagnosed during Phase 3 — see
 `plan/PHASE_3_PLAN.md`'s session log). Stop the native instance first, or edit `DATABASE_URL` in
 `.env` to a different port, if you need both.
@@ -32,7 +32,18 @@ In separate terminals:
 
 ```bash
 npm run dev:web     # apps/web — Next.js dashboard, http://localhost:3000
-npm run dev:worker  # apps/worker — worker process skeleton, no job processing yet
+npm run dev:worker  # apps/worker — health endpoint plus the database job-claim loop
+```
+
+To exercise the Phase 4 deterministic browser job locally, install Chromium once and use three
+terminals. Fixture mode is explicit because it permits the worker to reach the owned local site;
+the worker rejects deterministic jobs when the flag is absent.
+
+```bash
+npx playwright install chromium
+npm run dev:fixture-site
+npm run seed-fixture-run --workspace=apps/worker
+WORKER_FIXTURE_MODE=true npm run dev:worker
 ```
 
 ## Health checks
@@ -54,15 +65,15 @@ npm run format:check
 
 ## What's not here yet
 
-- `apps/worker` starts and reports healthy but does not claim or process any jobs
-  (Phase 4/5/6).
+- Model-selected browser actions are not enabled yet. The worker only runs Phase 4's fixed
+  navigate → capture → click → capture → finish sequence against an explicitly enabled fixture.
 - Website ownership/authorization status isn't surfaced in the UI yet, and there's no website
   detail-view page (API route exists, no page).
 - Runs, journey steps, and findings are still fixture/demo data, not backed by the database —
   only websites (Phase 3's scope) are real. This means the Runs and Journeys pages don't reflect
   whichever real website is selected.
-- `tests/e2e` and `tests/fixtures/site` still have placeholder READMEs only —
-  `tests/integration` is the one populated so far.
+- `tests/e2e` remains reserved for Phase 11. The Phase 4 fixture and integration suites are real
+  and self-start the fixture server during `npm run test:integration`.
 
 The web development server writes to `apps/web/.next-dev`; production builds use
 `apps/web/.next`. These directories stay separate so running a build does not

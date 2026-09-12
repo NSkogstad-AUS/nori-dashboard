@@ -10,8 +10,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   checkNavigationTarget,
+  checkRedirectChain,
   checkResolvedTarget,
   checkUrlStructure,
+  checkWebSocketTarget,
   isPrivateOrReservedIp,
 } from '@nori/agent';
 
@@ -111,15 +113,83 @@ test('checkNavigationTarget — full check rejects a redirect-style target point
   assert.equal(result.allowed, false, 'even an allowlisted origin must fail resolved-IP checks');
 });
 
-test('checkNavigationTarget — allows a real public origin when allowlisted', async () => {
+test('checkNavigationTarget — allows a public resolved address when allowlisted', async () => {
   const result = await checkNavigationTarget('https://example.com/', {
     allowedOrigins: ['https://example.com'],
+    resolveHostname: async () => ['93.184.216.34'],
   });
   assert.equal(result.allowed, true);
+});
+
+test('redirect chain revalidates every hop and rejects a private final target', async () => {
+  const result = await checkRedirectChain(
+    ['https://example.com/start', 'http://10.0.0.5/internal'],
+    {
+      allowedOrigins: ['https://example.com', 'http://10.0.0.5'],
+      resolveHostname: async () => ['93.184.216.34'],
+    },
+  );
+  assert.equal(result.allowed, false);
+  assert.match(result.reason ?? '', /resolved_to_private_ip/);
+});
+
+test('DNS answers are re-resolved and a rebinding change is rejected', async () => {
+  let lookup = 0;
+  const rebindingOptions = {
+    allowedOrigins: ['https://example.com'],
+    resolveHostname: async () => (++lookup === 1 ? ['93.184.216.34'] : ['127.0.0.1']),
+  };
+  assert.equal(
+    (await checkNavigationTarget('https://example.com/', rebindingOptions)).allowed,
+    true,
+  );
+  const rebound = await checkNavigationTarget('https://example.com/', rebindingOptions);
+  assert.equal(rebound.allowed, false);
+  assert.match(rebound.reason ?? '', /resolved_to_private_ip/);
+});
+
+test('WebSocket targets use the equivalent allowlisted HTTP origin', async () => {
+  const result = await checkWebSocketTarget('wss://example.com/socket', {
+    allowedOrigins: ['https://example.com'],
+    resolveHostname: async () => ['93.184.216.34'],
+  });
+  assert.equal(result.allowed, true);
+});
+
+test('WebSocket targets cannot bypass private-address checks', async () => {
+  const result = await checkWebSocketTarget('ws://127.0.0.1/socket', {
+    allowedOrigins: ['http://127.0.0.1'],
+  });
+  assert.equal(result.allowed, false);
 });
 
 test('checkNavigationTarget — structural rejection short-circuits before DNS', async () => {
   const result = await checkNavigationTarget('http://evil.example.com/', options);
   assert.equal(result.allowed, false);
   assert.match(result.reason ?? '', /origin_not_allowlisted/);
+});
+
+test('allowPrivateTargets — defaults to strict (false) when omitted', async () => {
+  const result = await checkNavigationTarget('http://127.0.0.1:8082/', {
+    allowedOrigins: ['http://127.0.0.1:8082'],
+    allowedPorts: [8082],
+  });
+  assert.equal(result.allowed, false, 'omitting allowPrivateTargets must not implicitly allow it');
+});
+
+test('allowPrivateTargets — explicit true allows a private target that would otherwise be blocked', async () => {
+  const result = await checkNavigationTarget('http://127.0.0.1:8082/', {
+    allowedOrigins: ['http://127.0.0.1:8082'],
+    allowedPorts: [8082],
+    allowPrivateTargets: true,
+  });
+  assert.equal(result.allowed, true);
+});
+
+test('allowPrivateTargets — still enforces structural checks (origin allowlist) even when true', async () => {
+  const result = await checkNavigationTarget('http://127.0.0.1:9999/', {
+    allowedOrigins: ['http://127.0.0.1:8082'],
+    allowPrivateTargets: true,
+  });
+  assert.equal(result.allowed, false, 'allowPrivateTargets must not bypass the origin allowlist');
 });

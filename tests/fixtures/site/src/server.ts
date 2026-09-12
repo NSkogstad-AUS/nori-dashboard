@@ -6,6 +6,7 @@ import {
   confusingCtaPage,
   focusTrapPage,
   errorPage,
+  unclickablePage,
 } from './pages.js';
 
 // Owned fixture website for Phase 4's deterministic worker testing — see
@@ -39,6 +40,13 @@ const server = createServer((req, res) => {
         // Artificial delay to exercise timeout/slow-page handling.
         await sleep(5000);
         respondHtml(res, 200, homePage);
+        return;
+      case '/redirect-unsafe':
+        res.writeHead(302, { location: 'http://127.0.0.1:9999/internal' });
+        res.end();
+        return;
+      case '/unclickable':
+        respondHtml(res, 200, unclickablePage);
         return;
       case '/error':
         respondHtml(res, 500, errorPage);

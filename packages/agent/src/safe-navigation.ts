@@ -1,4 +1,5 @@
 import { promises as dns } from 'node:dns';
+import { isIP } from 'node:net';
 
 // Navigation-safety policy for Phase 4 ("Safe deterministic browser execution" —
 // plan/PHASE_4_PLAN.md section 4.3). This is the network-boundary gate every navigation, redirect
@@ -15,6 +16,20 @@ export interface NavigationCheckOptions {
   allowedOrigins: readonly string[];
   /** Ports allowed beyond the default 80/443 — empty by default (only default ports allowed). */
   allowedPorts?: readonly number[];
+  /**
+   * Skips the private/reserved-IP rejection in checkResolvedTarget/checkNavigationTarget.
+   * Defaults to false — every real navigation (including anything Phase 5's model-driven
+   * personas will ever request) must leave this unset. The one legitimate use is Phase 4's own
+   * fixture job: a developer's LAN address (e.g. 192.168.x.x) is itself a private RFC 1918
+   * address, so there is no address on a typical dev machine that both reaches the local fixture
+   * site and passes the strict check — this flag exists so that one caller
+   * (apps/worker/src/run-fixture-job.ts) can explicitly opt out for that one known-safe local
+   * origin, without weakening the default behavior anyone else gets. Structural checks (scheme,
+   * credentials, port, origin allowlist) still apply even when this is true.
+   */
+  allowPrivateTargets?: boolean;
+  /** Injectable only so security tests can prove changing/rebinding DNS answers are rechecked. */
+  resolveHostname?: (hostname: string) => Promise<readonly string[]>;
 }
 
 export interface NavigationCheckResult {
@@ -23,6 +38,11 @@ export interface NavigationCheckResult {
    *  callers can map it directly to a step's `observation` and the `unsafe_target` error code. */
   reason?: string;
 }
+
+export const defaultResolveHostname = async (hostname: string): Promise<readonly string[]> => {
+  const results = await dns.lookup(hostname, { all: true, verbatim: true });
+  return results.map((result) => result.address);
+};
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 const DEFAULT_PORTS = new Set([80, 443]);
@@ -50,8 +70,9 @@ export function isPrivateOrReservedIp(ip: string): boolean {
     if (a === 100 && b >= 64 && b <= 127) return true; // RFC 6598 carrier-grade NAT
     if (a === 192 && b === 0) return true; // documentation / IETF protocol assignments (192.0.0.0/24, 192.0.2.0/24 covered below)
     if (a === 198 && (b === 18 || b === 19)) return true; // RFC 2544 benchmarking
-    if (a === 224) return true; // multicast (224.0.0.0/4 start)
-    if (a >= 240) return true; // reserved/broadcast
+    if (a >= 224) return true; // multicast and reserved/broadcast
+    if (a === 198 && b === 51 && octets[2] === 100) return true; // documentation
+    if (a === 203 && b === 0 && octets[2] === 113) return true; // documentation
     return false;
   }
 
@@ -61,6 +82,7 @@ export function isPrivateOrReservedIp(ip: string): boolean {
   if (lower === '::') return true; // unspecified
   if (lower.startsWith('fe80:') || lower.startsWith('fe80::')) return true; // link-local
   if (lower.startsWith('fc') || lower.startsWith('fd')) return true; // unique local (fc00::/7)
+  if (lower.startsWith('ff')) return true; // multicast
   if (lower.startsWith('::ffff:')) {
     // IPv4-mapped IPv6 — re-check the embedded IPv4 address.
     const mapped = lower.slice('::ffff:'.length);
@@ -116,19 +138,26 @@ export function checkUrlStructure(
  * the hostname. Call this immediately before each navigation/connection attempt (not once
  * up-front and cached), since a hostname's resolution can change between checks.
  */
-export async function checkResolvedTarget(rawUrl: string): Promise<NavigationCheckResult> {
+export async function checkResolvedTarget(
+  rawUrl: string,
+  allowPrivateTargets = false,
+  resolveHostname: (hostname: string) => Promise<readonly string[]> = defaultResolveHostname,
+): Promise<NavigationCheckResult> {
   const url = parseUrlSafely(rawUrl);
   if (!url) {
     return { allowed: false, reason: 'unparseable_url' };
   }
+  if (allowPrivateTargets) {
+    return { allowed: true };
+  }
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
   // A bare IP in the URL itself (e.g. http://169.254.169.254/) has no DNS step — check directly.
-  if (isPrivateOrReservedIp(url.hostname.replace(/^\[|\]$/g, ''))) {
+  if (isPrivateOrReservedIp(hostname)) {
     return { allowed: false, reason: `resolved_to_private_ip:${url.hostname}` };
   }
-  let addresses: string[];
+  let addresses: readonly string[];
   try {
-    const results = await dns.lookup(url.hostname, { all: true, verbatim: true });
-    addresses = results.map((r) => r.address);
+    addresses = isIP(hostname) ? [hostname] : await resolveHostname(hostname);
   } catch {
     return { allowed: false, reason: 'dns_resolution_failed' };
   }
@@ -140,6 +169,20 @@ export async function checkResolvedTarget(rawUrl: string): Promise<NavigationChe
     return { allowed: false, reason: `resolved_to_private_ip:${blocked}` };
   }
   return { allowed: true };
+}
+
+/** Returns all addresses from the same fresh lookup used for browser hostname pinning. */
+export async function resolveTargetAddresses(
+  rawUrl: string,
+  resolveHostname: (hostname: string) => Promise<readonly string[]> = defaultResolveHostname,
+): Promise<readonly string[]> {
+  const url = parseUrlSafely(rawUrl);
+  if (!url) throw new Error('unparseable_url');
+  const hostname = url.hostname.replace(/^\[|\]$/g, '');
+  if (isIP(hostname)) return [hostname];
+  const addresses = await resolveHostname(hostname);
+  if (addresses.length === 0) throw new Error('dns_resolution_empty');
+  return addresses;
 }
 
 /**
@@ -156,5 +199,30 @@ export async function checkNavigationTarget(
   if (!structural.allowed) {
     return structural;
   }
-  return checkResolvedTarget(rawUrl);
+  return checkResolvedTarget(rawUrl, options.allowPrivateTargets ?? false, options.resolveHostname);
+}
+
+/** WebSocket origins use ws/wss while run allowlists use their HTTP equivalents. */
+export async function checkWebSocketTarget(
+  rawUrl: string,
+  options: NavigationCheckOptions,
+): Promise<NavigationCheckResult> {
+  const url = parseUrlSafely(rawUrl);
+  if (!url || (url.protocol !== 'ws:' && url.protocol !== 'wss:')) {
+    return { allowed: false, reason: `disallowed_websocket_scheme:${url?.protocol ?? 'invalid'}` };
+  }
+  url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+  return checkNavigationTarget(url.href, options);
+}
+
+/** Rechecks every URL independently; no DNS answer or redirect decision is cached. */
+export async function checkRedirectChain(
+  urls: readonly string[],
+  options: NavigationCheckOptions,
+): Promise<NavigationCheckResult> {
+  for (const url of urls) {
+    const result = await checkNavigationTarget(url, options);
+    if (!result.allowed) return result;
+  }
+  return { allowed: true };
 }

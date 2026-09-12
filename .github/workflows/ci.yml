@@ -33,6 +33,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npx playwright install --with-deps chromium
+
       - run: npm run typecheck
 
       - run: npm run lint
@@ -42,6 +44,3 @@ jobs:
       - run: npm run db:migrate
 
       - run: npm run test:integration
-
-      # tests/e2e and tests/fixtures/site are still placeholders (Phase 4+ populates them per
-      # the implementation plan's phase checklist) — only the integration suite runs so far.

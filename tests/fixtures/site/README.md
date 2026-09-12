@@ -1,5 +1,13 @@
 # Fixture site
 
-Placeholder. Phase 4 ("Safe deterministic browser execution") builds an owned fixture
-website here with known success paths, broken links, a confusing CTA, keyboard-focus
-issues, and delayed/error pages, for deterministic worker testing.
+Owned Phase 4 website for deterministic browser tests. It includes a successful newsletter
+subscription, broken links, a misleading CTA, a keyboard-focus problem, a delayed response, a
+server error, an unsafe redirect, and an unclickable action used by lifecycle tests.
+
+Run it from the repository root:
+
+```bash
+npm run dev:fixture-site
+```
+
+It listens on port 8082 by default. Set `FIXTURE_SITE_PORT` to override it.

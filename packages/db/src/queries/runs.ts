@@ -1,4 +1,10 @@
-import { isValidRunTransition, type Run, type RunLimits, type RunState } from '@nori/contracts';
+import {
+  isValidRunTransition,
+  type CancelRequestState,
+  type Run,
+  type RunLimits,
+  type RunState,
+} from '@nori/contracts';
 import { getDb } from '../client';
 import { rowToCamelCase } from '../row-mapping';
 
@@ -59,6 +65,37 @@ export async function getRunByIdUnscoped(runId: string): Promise<Run | null> {
     where id = ${runId}
   `;
   return row ? rowToCamelCase<Run>(row) : null;
+}
+
+export async function getRunCancellationState(runId: string): Promise<CancelRequestState | null> {
+  const sql = getDb();
+  const [row] = await sql<{ cancel_request_state: CancelRequestState }[]>`
+    select cancel_request_state from runs where id = ${runId}
+  `;
+  return row?.cancel_request_state ?? null;
+}
+
+export async function updateRunCancellationState(
+  runId: string,
+  from: CancelRequestState,
+  to: CancelRequestState,
+): Promise<void> {
+  const allowed =
+    (from === 'none' && to === 'cancel_requested') ||
+    (from === 'cancel_requested' && to === 'cancelled');
+  if (!allowed) {
+    throw new Error(`updateRunCancellationState: invalid transition ${from} -> ${to}`);
+  }
+  const sql = getDb();
+  const result = await sql`
+    update runs set cancel_request_state = ${to}, updated_at = now()
+    where id = ${runId} and cancel_request_state = ${from}
+  `;
+  if (result.count !== 1) {
+    throw new Error(
+      `updateRunCancellationState: no row updated for runId ${runId} (expected ${from})`,
+    );
+  }
 }
 
 /**
