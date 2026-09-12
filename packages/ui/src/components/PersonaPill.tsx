@@ -17,7 +17,7 @@ export interface PersonaPillProps {
    */
   selectionMode: 'toggle' | 'single';
   onSelect: (id: string) => void;
-  onRemove: (id: string) => void;
+  compact?: boolean;
 }
 
 export function PersonaPill({
@@ -30,7 +30,7 @@ export function PersonaPill({
   selected,
   selectionMode,
   onSelect,
-  onRemove,
+  compact = false,
 }: PersonaPillProps) {
   const actionLabel =
     selectionMode === 'single'
@@ -42,18 +42,10 @@ export function PersonaPill({
         : 'Select';
   return (
     <article
-      className={`person ${colorClass}${selected ? ' selected' : ''}`}
+      className={`person ${colorClass}${selected ? ' selected' : ''}${compact ? ' person-compact' : ''}`}
       data-person={id}
       aria-label={name}
     >
-      <button
-        type="button"
-        className="person-remove"
-        aria-label={`Remove ${name} from attached perspectives`}
-        onClick={() => onRemove(id)}
-      >
-        ×
-      </button>
       <span className="person-photo-frame">
         <span className="person-heading">
           <strong>{name}</strong>
@@ -72,6 +64,7 @@ export function PersonaPill({
             <span className="emoji person-identity-emoji">{emoji}</span>
           )}
           <span className="person-details">
+            {compact && <strong className="person-compact-name">{name}</strong>}
             <span className="person-role">{role}</span>
           </span>
         </span>

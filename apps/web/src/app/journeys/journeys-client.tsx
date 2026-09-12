@@ -61,11 +61,11 @@ export default function JourneysClient() {
 }
 
 function JourneysContent() {
-  const { mode, setMode, setPlaying, selectedPersonId, setSelectedPersonId, setCaptureMessage } =
-    useJourneyView();
+  const { mode, setMode, setPlaying, setCaptureMessage } = useJourneyView();
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [websiteUrl, setWebsiteUrl] = useState('');
   const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
     () => new Set(personas.map((persona) => persona.id)),
   );
@@ -76,12 +76,7 @@ function JourneysContent() {
 
   const toggleAttached = (id: string) => {
     const next = new Set(attachedPersonaIds);
-    if (next.has(id)) {
-      next.delete(id);
-      if (selectedPersonId === id) setSelectedPersonId(next.values().next().value ?? null);
-    } else {
-      next.add(id);
-    }
+    next.add(id);
     setAttachedPersonaIds(next);
     setPlaying(false);
     setCaptureMessage('');
@@ -108,12 +103,35 @@ function JourneysContent() {
 
   return (
     <>
+      <section className="journey-website" aria-label="Website">
+        <div className="journey-website-input">
+          <span className="journey-website-icon" aria-hidden="true">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <ellipse cx="12" cy="12" rx="4" ry="9" />
+              <path d="M3 12h18" />
+            </svg>
+          </span>
+          <input
+            type="url"
+            aria-label="Website URL"
+            placeholder="Enter a website URL"
+            value={websiteUrl}
+            onChange={(event) => setWebsiteUrl(event.target.value)}
+            autoComplete="url"
+            spellCheck={false}
+          />
+        </div>
+      </section>
       <div className="perspective-panel">
-        <PersonaShelfSection
-          onOpenLibrary={openLibrary}
-          attachedPersonaIds={attachedPersonaIds}
-          onRemove={toggleAttached}
-        />
+        <PersonaShelfSection onOpenLibrary={openLibrary} attachedPersonaIds={attachedPersonaIds} />
       </div>
       <div className="journey-experience">
         <JourneyViewSwitch mode={mode} onChange={setMode} />
@@ -168,11 +186,9 @@ function JourneysContent() {
 function PersonaShelfSection({
   onOpenLibrary,
   attachedPersonaIds,
-  onRemove,
 }: {
   onOpenLibrary: () => void;
   attachedPersonaIds: Set<string>;
-  onRemove: (id: string) => void;
 }) {
   const { mode, selectedPersonId, setSelectedPersonId, setPlaying, setCaptureMessage } =
     useJourneyView();
@@ -209,8 +225,6 @@ function PersonaShelfSection({
       selectionMode={mode === 'live' ? 'single' : 'toggle'}
       onSelect={handleSelect}
       onOpenLibrary={onOpenLibrary}
-      onRemove={onRemove}
-      liveCopy={mode === 'live'}
     />
   );
 }

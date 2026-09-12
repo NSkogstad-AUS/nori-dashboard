@@ -451,8 +451,8 @@ main {
 
 .persona-shelf {
   display: block;
-  padding: 27px 28px 28px;
-  margin: 0 0 var(--space-lg);
+  padding: 0;
+  margin: 0;
   border-radius: 0;
   background: transparent;
   border: 0;
@@ -471,7 +471,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-width: calc(50% - 170px);
+  min-width: 0;
 }
 
 .shelf-title span {
@@ -503,7 +503,7 @@ main {
   gap: 16px;
   text-align: left;
   padding: 12px;
-  border-radius: 30px;
+  border-radius: 16px;
   background: #fff;
   border: 1px solid rgba(26, 26, 26, 0.04);
   min-width: 0;
@@ -532,7 +532,7 @@ main {
   display: block;
   width: 100%;
   aspect-ratio: 0.87;
-  border-radius: 22px;
+  border-radius: 10px;
   overflow: hidden;
   background: #b9c3c5;
 }
@@ -622,28 +622,6 @@ main {
   flex-shrink: 0;
 }
 
-.person-remove {
-  position: absolute;
-  z-index: 2;
-  top: 20px;
-  right: 20px;
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--ink);
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.person-remove:hover {
-  background: #fff;
-  color: var(--signal);
-}
-
 .person-add {
   display: flex;
   flex-direction: column;
@@ -652,7 +630,7 @@ main {
   gap: 12px;
   min-height: 220px;
   border: 1px dashed var(--line);
-  border-radius: 30px;
+  border-radius: 16px;
   background: transparent;
   color: var(--muted);
   font: inherit;
@@ -704,7 +682,9 @@ main {
 
 .perspective-panel {
   position: relative;
-  margin: 6px 0 25px;
+  margin: 0 0 40px;
+  padding: 32px 0 40px;
+  border-bottom: 1px solid var(--line);
 }
 
 .view-switch {
@@ -2455,7 +2435,7 @@ form > .pill {
   }
   .perspective-panel .persona-shelf,
   .persona-shelf {
-    padding: 24px 16px;
+    padding: 0;
   }
   .shelf-header {
     margin-bottom: 16px;
@@ -2674,5 +2654,119 @@ form > .pill {
   }
   .capture-card small {
     font-size: 7px;
+  }
+}
+
+/* Website entry and compact perspectives */
+.journey-website {
+  padding: 8px 0 32px;
+  border-bottom: 1px solid var(--line);
+}
+
+.journey-website-input {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  min-height: 76px;
+  background: #fff;
+  border: 1px solid rgba(26, 26, 26, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 12px 28px -20px rgba(25, 25, 30, 0.25);
+}
+
+.journey-website-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #f2f3f4;
+  color: var(--muted);
+}
+
+.journey-website-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 20px;
+  outline: none;
+}
+
+.journey-website-input:focus-within {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.journey-website-input input::placeholder {
+  color: #939599;
+}
+
+.perspectives-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.person-compact {
+  justify-content: center;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 6px 16px -12px rgba(25, 25, 30, 0.2);
+}
+
+.person-compact .person-photo-frame,
+.person-compact .person-role {
+  display: none;
+}
+
+.person-compact .person-footer {
+  padding: 0;
+  gap: 10px;
+}
+
+.person-compact .person-avatar,
+.person-compact .person-identity-emoji {
+  width: 56px;
+  height: 56px;
+}
+
+.person-compact .person-identity {
+  gap: 10px;
+}
+
+.person-compact-name {
+  font-size: var(--text-sm);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.people-compact .person-add {
+  min-height: 86px;
+  flex-direction: row;
+  border-radius: 12px;
+}
+
+@media (min-width: 761px) and (max-width: 1200px) {
+  .people-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .people-compact {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
