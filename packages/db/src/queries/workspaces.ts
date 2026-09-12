@@ -1,6 +1,6 @@
 import type { Workspace } from '@nori/contracts';
-import { getDb } from '../client.js';
-import { rowToCamelCase } from '../row-mapping.js';
+import { getDb } from '../client';
+import { rowToCamelCase } from '../row-mapping';
 
 /**
  * Ensures a `workspaces` row exists for the given Clerk organization, creating one on first

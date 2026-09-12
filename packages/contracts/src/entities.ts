@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RUN_STATES, SESSION_STATES, CANCEL_REQUEST_STATES } from './state-machines.js';
+import { RUN_STATES, SESSION_STATES, CANCEL_REQUEST_STATES } from './state-machines';
 
 // Data model from plan/IMPLEMENTATION_PLAN.md section 5.
 // Every tenant-owned record carries a workspaceId; server-side authorization

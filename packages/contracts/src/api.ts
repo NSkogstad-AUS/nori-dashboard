@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { runLimitsSchema, runSchema, websiteSchema } from './entities.js';
+import { runLimitsSchema, runSchema, websiteSchema } from './entities';
 
 // API sketch from plan/IMPLEMENTATION_PLAN.md section 5.
 

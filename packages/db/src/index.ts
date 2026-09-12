@@ -1,3 +1,3 @@
-export * from './client.js';
-export * from './queries/workspaces.js';
-export * from './queries/websites.js';
+export * from './client';
+export * from './queries/workspaces';
+export * from './queries/websites';

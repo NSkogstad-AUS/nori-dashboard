@@ -1,6 +1,6 @@
 import type { Website } from '@nori/contracts';
-import { getDb } from '../client.js';
-import { rowToCamelCase } from '../row-mapping.js';
+import { getDb } from '../client';
+import { rowToCamelCase } from '../row-mapping';
 
 // Every function here takes workspaceId as a required parameter and scopes its WHERE clause on
 // it — never trust a bare website id from the client without also checking it belongs to the
