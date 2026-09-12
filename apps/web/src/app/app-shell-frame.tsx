@@ -127,7 +127,6 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
           <PageHeader
             websiteName={activeWebsite.displayName}
             sectionLabel={sectionLabel}
-            eyebrow="Connected stages · Floating persona shelf"
             title={title}
             note="The whole experience, connected."
             onNewRun={openNewRun}

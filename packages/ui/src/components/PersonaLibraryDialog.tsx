@@ -27,7 +27,7 @@ export function PersonaLibraryDialog({ open, onClose, personas }: PersonaLibrary
       <button className="close circle" data-close aria-label="Close dialog" onClick={onClose}>
         ×
       </button>
-      <span className="eyebrow">Perspective library</span>
+      <span className="subtle">Perspective library</span>
       <h2 id="persona-library-title">Four different ways of seeing.</h2>
       <div className="library">
         {personas.map((persona) => (

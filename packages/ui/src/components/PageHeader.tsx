@@ -6,7 +6,6 @@ import { FixtureModeBadge } from './FixtureModeBadge';
 export interface PageHeaderProps {
   websiteName: string;
   sectionLabel: string;
-  eyebrow: string;
   title: string;
   note: string;
   onNewRun: () => void;
@@ -15,7 +14,6 @@ export interface PageHeaderProps {
 export function PageHeader({
   websiteName,
   sectionLabel,
-  eyebrow,
   title,
   note,
   onNewRun,
@@ -35,7 +33,6 @@ export function PageHeader({
       </header>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">{eyebrow}</p>
           <h1>{title}</h1>
           <p>{note}</p>
         </div>

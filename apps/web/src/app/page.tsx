@@ -43,7 +43,7 @@ export default function HomePage() {
   return (
     <div className="overview-grid">
       <section className="welcome-panel">
-        <span className="eyebrow">Your workspace, at a glance</span>
+        <span className="subtle">Your workspace, at a glance</span>
         <h2>
           A fresh look at
           <br />
@@ -62,7 +62,7 @@ export default function HomePage() {
         </div>
       </section>
       <section className="metric-panel">
-        <span className="eyebrow">Across your workspace</span>
+        <span className="subtle">Across your workspace</span>
         <div>
           <strong>{String(runs.length).padStart(2, '0')}</strong>
           <span>sample runs</span>
@@ -79,7 +79,7 @@ export default function HomePage() {
       <section className="overview-journey">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Latest journey / {activeWebsite.displayName}</span>
+            <span className="subtle">Latest journey / {activeWebsite.displayName}</span>
             <h2>Where people pause</h2>
           </div>
           <button
@@ -124,7 +124,7 @@ export default function HomePage() {
               <span>
                 <strong>{run.task}</strong>
                 <small>
-                  {new URL(site.origin).hostname} · {formatRelativeDate(run.createdAt)}
+                  {new URL(site.origin).hostname}, {formatRelativeDate(run.createdAt)}
                 </small>
               </span>
               <span>↗</span>

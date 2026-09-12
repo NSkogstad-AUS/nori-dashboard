@@ -28,10 +28,11 @@ export function PersonaPill({
   selected,
   onSelect,
 }: PersonaPillProps) {
+  const hasIssues = issues > 0;
   return (
     <button
       type="button"
-      className={`person ${colorClass}${selected ? ' selected' : ''}`}
+      className={`person ${colorClass}${selected ? ' selected' : ''}${hasIssues ? ' has-issues' : ''}`}
       data-person={id}
       aria-pressed={selected}
       onClick={() => onSelect(id)}

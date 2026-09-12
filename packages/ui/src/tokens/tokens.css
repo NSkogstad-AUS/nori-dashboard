@@ -1,44 +1,47 @@
 /*
- * Nori — Soft Spectrum design tokens.
+ * Nori — design tokens.
  *
- * Extracted from the FINAL `:root` block in prototype/styles.css (the one redefined near the
- * bottom of the file, just before the `body[data-design="1"]` override at the very end — CSS
- * custom properties cascade, so that later declaration is the one actually in effect for the
- * selected "Journey Atlas" direction, not the earlier draft `:root` block near the top of the
- * file). See plan/PHASE_2_PLAN.md section 2 for the extraction rationale.
+ * Visual redesign pass (see plan reviewed against the "generic AI dashboard" critique of the
+ * Soft Spectrum prototype port). Nori is a usability-testing tool — it watches simulated
+ * personas move through a website and produces evidence a product person needs to trust. The
+ * token system below is built for that: a quiet paper/ink base, with exactly two meaningful
+ * colors reserved for outcomes (friction vs. clear), not decoration.
  *
- * Explicitly NOT ported here: anything scoped under body[data-design="2"|"3"|"4"] or the
- * `.concept-bar`/`data-concept` rules — those belonged to the abandoned 5-concept comparison
- * and must not resurface as a design-token source.
- *
- * Radii, spacing, and shadows below are NOT a 1:1 port — the prototype uses ad hoc magic
- * numbers inline on individual rules. This file consolidates those into small scales, per the
- * plan's explicit instruction that this is a deliberate improvement, not a straight port.
+ * Radii, spacing, and shadows are a consolidated scale, not a 1:1 port of prototype magic
+ * numbers — kept from the Phase 2 pass since that consolidation is still sound.
  *
  * Motion tokens/rules live in ./motion.css (see that file's header for the split rationale).
+ * Type tokens (--font-display/--font-body) are wired in from apps/web/src/lib/fonts.ts via
+ * inline style on <html> — see layout.tsx.
  */
 
 :root {
-  /* Base text / surface colors (final :root block, prototype/styles.css) */
-  --ink: #24252d;
-  --muted: #626570;
-  --paper: #faf9fb;
-  --line: #dedee7;
+  /* Base text / surface colors */
+  --ink: #1a1d24;
+  --muted: #6b6862;
+  --paper: #f2f0ea;
+  --line: #ddd9cf;
 
-  /* Persona / category accent colors (final :root block, prototype/styles.css) */
+  /* Meaning colors — reserved for outcomes only. --signal marks friction/errors/issues;
+     --clear marks "continued smoothly" / success. Never used as decorative background wash;
+     text color, thin rules/borders, and small indicator dots only. */
+  --signal: #b23b2e;
+  --clear: #3d5c4c;
+
+  /* Legacy accent, still used for the "New run" / primary emphasis affordance. */
   --accent: #ff8c73;
   --coral: #ff8c73;
+
+  /* Quiet neutral fills — kept only for avatar/monogram backgrounds where a soft fill still
+     legitimately helps tell people apart at a glance. No longer used to encode persona
+     "category" as the primary identity device (that's typography + monogram now). */
   --peach: #f6c6d8;
   --blue: #b9dcff;
   --violet: #cdc1f4;
   --lime: #cae7e7;
 
-  /* App background surface + hero gradient */
-  --workspace: #faf9fb;
-  --spectrum: radial-gradient(ellipse at 5% 12%, #bedaff, transparent 55%),
-    radial-gradient(ellipse at 90% 0%, #b4a3ee, transparent 58%),
-    radial-gradient(ellipse at 30% 100%, #f48fa9, transparent 58%),
-    radial-gradient(ellipse at 93% 100%, #ffdfbb, transparent 55%), #e4d6ef;
+  /* App background surface — flat paper, replacing the rainbow radial-gradient soup. */
+  --workspace: #f2f0ea;
 
   /*
    * Radius scale — consolidates prototype magic numbers:
@@ -52,7 +55,7 @@
 
   /*
    * Spacing scale — consolidates ad hoc paddings/gaps used across .shell, .rail,
-   * .persona-shelf, .map-panel, dialog, etc. (the prototype has no scale today).
+   * .persona-shelf, .map-panel, dialog, etc.
    */
   --space-2xs: 4px;
   --space-xs: 8px;
@@ -63,10 +66,31 @@
   --space-2xl: 48px;
 
   /*
-   * Shadow scale — consolidates box-shadows from .shell, .pill/.circle, .journey-node,
-   * .floating-dock, dialog.
+   * Shadow scale — kept subtle; the redesign leans on hairlines/borders for structure rather
+   * than soft drop shadows, so these are used sparingly (dialogs, floating dock, hover lift).
    */
-  --shadow-sm: 0 3px 10px rgb(49 54 71 / 4%);
-  --shadow-md: 0 9px 20px rgb(60 64 85 / 7%);
-  --shadow-lg: 0 35px 100px rgb(36 38 51 / 19%);
+  --shadow-sm: 0 3px 10px rgb(26 29 36 / 5%);
+  --shadow-md: 0 9px 20px rgb(26 29 36 / 8%);
+  --shadow-lg: 0 35px 100px rgb(26 29 36 / 18%);
+
+  /* Type — base fallback stacks. apps/web's font loader (next/font/google, see
+     apps/web/src/lib/fonts.ts) redefines --font-display/--font-body on <html> as Fraunces/Inter
+     (each with its own self-hosted fallback chain baked in via next/font's `fallback` option),
+     which overrides these :root values in the cascade for the actual app. These :root values
+     are what's in effect for any standalone render of this package without that class present —
+     a distinctive editorial serif stack for display, a reliable grotesk stack for body. */
+  --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', ui-serif, serif;
+  --font-body:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Type scale — ~1.25 ratio, anchored at 16px base. */
+  --text-2xs: 11px;
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-md: 18px;
+  --text-lg: 20px;
+  --text-xl: 25px;
+  --text-2xl: 31px;
+  --text-3xl: 39px;
 }

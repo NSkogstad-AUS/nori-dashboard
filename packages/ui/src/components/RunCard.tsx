@@ -25,12 +25,7 @@ export function RunCard({
   return (
     <button type="button" className="run-card" onClick={onOpen}>
       <div className={`run-art ${colorClass}`}>
-        <div className="tiny-browser">
-          <span>•••</span>
-          <div></div>
-          <div></div>
-          <i></i>
-        </div>
+        <span className="site-avatar">{websiteUrl.charAt(0).toUpperCase()}</span>
         <div className="art-people">
           {personaEmojis.map((emoji, index) => (
             <span key={index}>{emoji}</span>
@@ -38,7 +33,7 @@ export function RunCard({
         </div>
       </div>
       <div className="run-card-copy">
-        <span className="eyebrow">{websiteUrl}</span>
+        <span className="subtle">{websiteUrl}</span>
         <h2>{title}</h2>
         <p>{date}</p>
         <footer>

@@ -39,12 +39,12 @@ export function FindingDrawer({
       <button className="close circle" data-close aria-label="Close dialog" onClick={onClose}>
         ×
       </button>
-      <span className="eyebrow">Fictional evidence / {stageName}</span>
+      <span className="subtle">Fictional evidence / {stageName}</span>
       <h2 id="finding-drawer-title">{title}</h2>
       <div className="finding-person">
         <span className={`emoji ${personColorClass}`}>{personEmoji}</span>
         <span>
-          {personName} · {personRole}
+          {personName}, {personRole}
         </span>
         <span className="tag">{severity}</span>
       </div>

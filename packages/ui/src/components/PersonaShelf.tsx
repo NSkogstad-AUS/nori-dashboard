@@ -33,7 +33,7 @@ export function PersonaShelf({
     <div className="persona-shelf">
       <div className="shelf-header">
         <div className="shelf-title">
-          <span className="eyebrow">Attached perspectives</span>
+          <span>Attached perspectives</span>
           <small>
             {liveCopy ? 'Choose whose experience to watch' : 'Choose a person to trace their path'}
           </small>

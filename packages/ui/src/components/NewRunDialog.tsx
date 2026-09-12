@@ -80,7 +80,7 @@ export function NewRunDialog({ open, onClose, personas, onSubmit }: NewRunDialog
       <button className="close circle" data-close aria-label="Close dialog" onClick={onClose}>
         ×
       </button>
-      <span className="eyebrow">Set up a design preview</span>
+      <span className="subtle">Set up a design preview</span>
       <h2 id="new-run-dialog-title">Where should we look?</h2>
       <form onSubmit={handleSubmit}>
         <label htmlFor="run-url">Website URL</label>

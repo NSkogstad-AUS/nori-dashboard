@@ -196,7 +196,7 @@ function OverviewAtlas({ websiteUrl, onOpenFinding, onOpenStep }: OverviewAtlasP
   return (
     <>
       <div className="journey-tools">
-        <span>{websiteUrl} · Illustrative journey</span>
+        <span>{websiteUrl}, illustrative journey</span>
         <div>
           <button type="button" className="pill small" onClick={() => setSelectedPersonId(null)}>
             All perspectives
@@ -214,7 +214,7 @@ function OverviewAtlas({ websiteUrl, onOpenFinding, onOpenStep }: OverviewAtlasP
       <section className="map-panel">
         <div className="panel-head">
           <div>
-            <span className="eyebrow">Sample run / 024</span>
+            <span className="subtle">Sample run</span>
             <h2>{CANONICAL_RUN.task}</h2>
           </div>
           <button type="button" className="circle" aria-label="Run details">
@@ -378,13 +378,13 @@ function LiveView({ onOpenFinding }: LiveViewProps) {
             onCapture={handleCapture}
           />
           <FixtureModeBadge variant="disclaimer" className="feed-disclaimer">
-            {`Simulated browser frames · Forma is fictional, not a live connection to ${
+            {`Simulated browser frames. Forma is fictional, not a live connection to ${
               new URL(CANONICAL_RUN.url).hostname
             }. Playback is condensed.`}
           </FixtureModeBadge>
         </div>
         <aside className="activity-panel">
-          <span className="eyebrow">Through their eyes</span>
+          <span className="subtle">Through their eyes</span>
           <h3>{activitySteps[frame]?.actionText}</h3>
           <p>
             {persona.name} is at the &ldquo;{STAGE_NAMES[frame]}&rdquo; stage of this illustrative
@@ -451,7 +451,7 @@ function PlainStepNotice({
       <button className="close circle" data-close aria-label="Close dialog" onClick={onClose}>
         ×
       </button>
-      <span className="eyebrow">Sample journey / {STAGE_NAMES[stageIndex]}</span>
+      <span className="subtle">Sample journey / {STAGE_NAMES[stageIndex]}</span>
       <h2 id="plain-step-title">{actionText}</h2>
       <p>
         {persona ? (

@@ -29,7 +29,7 @@ export function CaptureStrip({
           <p>Select a still to revisit that point in the journey.</p>
         </div>
         <span>
-          {captureFrames.length} stills · {personName}
+          {captureFrames.length} stills for {personName}
         </span>
       </div>
       <div className="capture-grid">

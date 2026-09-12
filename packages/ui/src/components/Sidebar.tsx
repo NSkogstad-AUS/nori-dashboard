@@ -81,7 +81,7 @@ export function Sidebar({
         })}
       </nav>
       <div className="rail-sites">
-        <span className="rail-label">YOUR WEBSITES</span>
+        <span className="rail-label">Your websites</span>
         {siteItems.map((site) => (
           <button
             key={site.id}
@@ -99,7 +99,7 @@ export function Sidebar({
         <span className="avatar">Y</span>
         <strong>
           Your workspace
-          <small>Personal · Demo</small>
+          <small>Personal, demo workspace</small>
         </strong>
       </div>
     </aside>
