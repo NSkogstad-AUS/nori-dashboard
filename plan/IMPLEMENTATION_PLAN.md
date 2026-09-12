@@ -1,0 +1,356 @@
+# Nori — Product Implementation Plan
+
+Created: 12 September 2026
+Status: Planning only. No production functionality has been implemented by this plan.
+
+## 1. Purpose and working rules
+
+Build Nori: an AI usability consultant that explores authorized websites through different personas, records what happens, identifies potential bugs and usability friction, and produces evidence-linked recommendations.
+
+The core journey is:
+
+**Website URL → task and personas → browser exploration → journey overview / live view → evidence-backed report.**
+
+Use this file as the implementation checklist, not just a specification:
+
+1. Work through phases in order. Do not skip a phase's acceptance gate.
+2. Check a task only when its implementation and required verification are complete.
+3. Keep each change focused; avoid simultaneously replacing the design and building the agent system.
+4. Record decisions in the decision log below. Mark unresolved choices explicitly.
+5. At the end of each work session, update the handoff section with completed work, checks, blockers, and the next concrete task.
+6. Never present fixture data, simulated recordings, or model guesses as actual test results.
+7. Preserve the existing prototypes until the replacement passes visual and functional review.
+8. Treat the defaults in this plan as proposals, not as already-installed infrastructure or approved vendors.
+
+## 2. Current state and design baseline
+
+Inspected starting point:
+
+- This repository currently contains inspiration folders, not an application/backend scaffold.
+- Dashboard prototype: `/Users/nicolaiskogstad/PROJECTS_WEBSITES/nori-dashboard`.
+- Homepage prototype: `/Users/nicolaiskogstad/PROJECTS_WEBSITES/nori-website`.
+- Dashboard files are static HTML, CSS, and JavaScript. Their runs, findings, playback frames, and screenshots are fictional/in-memory.
+- Chosen direction: **01 / Journey Atlas**. The five-way design comparison is no longer needed.
+- Preserve the rounded attached-perspective shelf, emoji persona pills, issue markers, connected journey steps, and floating **Overview / Live view** controls.
+- Preserve Home, Journeys, Runs, and Websites navigation and the existing new-run entry point.
+- Color reference: homepage Soft Spectrum, balancing pink, coral, lavender, and sky blue. Use neutral reading surfaces and dark text; do not return to a mostly orange/yellow or pale purple dashboard.
+- Live view should follow the selected persona. Captured moments should open the corresponding evidence and journey step.
+
+Do not migrate old concept-specific CSS and simulated behavior wholesale. Extract the selected visual system into reusable components.
+
+## 3. Scope and boundaries
+
+### First usable release
+
+- Save and revisit websites inside an authenticated workspace.
+- Create a run with a URL, explicit task, one to three personas, device settings, and safe execution limits.
+- Explore owner-authorized public/staging pages with isolated browsers.
+- Record timestamped actions, screenshots, final URLs, and relevant browser errors.
+- Display real progress, persona paths, and near-live screenshot updates.
+- Cancel runs, inspect failures, and view completed evidence-linked reports.
+- Persist results across reloads and enforce workspace-level access control.
+
+### Not in the first release
+
+- Automatically deploying fixes or modifying customer source code.
+- Purchases, payments, messages, destructive actions, or unrestricted form submissions.
+- Arbitrary authenticated-site access, uploaded cookies, production credentials, or CAPTCHA bypass.
+- Full video/WebRTC streaming if refreshed screenshots satisfy the first live-view experience.
+- Mobile native apps, billing, team-role administration, and custom persona marketplaces.
+- Claims that simulated personas represent real user research or certify accessibility.
+
+Use a controlled fixture website for workflows requiring account creation or other side effects. Public-page testing remains conservative by default.
+
+## 4. Proposed architecture
+
+Recommended starting shape, to confirm before scaffolding:
+
+- **Web application:** React and TypeScript; a server-capable framework such as Next.js for dashboard routes and authenticated API endpoints.
+- **API/control layer:** owns validation, authorization, run creation, cancellation, persistence, and event delivery. Never executes long browser jobs inside a web request.
+- **Worker:** separate Node/TypeScript process using Playwright for browser execution, with schema-validated model actions behind a provider adapter.
+- **Database:** PostgreSQL for workspaces, websites, runs, sessions, steps, findings, and durable event ordering.
+- **Queue:** durable job queue with leases/heartbeats; choose a maintained database-backed implementation first, or Redis-backed queue if the hosting environment warrants it. Do not invent an in-memory production queue.
+- **Artifact storage:** private object storage for screenshots and optional later recordings. Local storage may be used only for local development.
+- **Updates:** server-sent events for status/action updates; authenticated image retrieval or short-lived signed URLs for screenshots. Cancellation uses an authenticated API request.
+- **Deployment:** web and workers run separately; workers require a browser-compatible sandbox and restrictive outbound network policy.
+
+### Suggested source layout
+
+```text
+nori-hackathon/
+  plan/IMPLEMENTATION_PLAN.md
+  apps/web/                 dashboard, authenticated API, event endpoint
+  apps/worker/              job consumer, browser runner, analysis pipeline
+  packages/contracts/      shared schemas and event types
+  packages/db/             database schema, migrations, queries
+  packages/agent/          model adapter, persona prompts, action policy
+  packages/ui/             selected Nori components and design tokens
+  tests/fixtures/site/     controlled website with known failures
+  tests/integration/       worker/API/database tests
+  tests/e2e/               complete user journeys
+  docs/                    setup, architecture, security, operating guide
+```
+
+Keep packages only where useful; a smaller initial scaffold is acceptable. Verify current official documentation, package compatibility, and hosting constraints before pinning versions.
+
+## 5. Contracts to agree before connecting components
+
+### Data model
+
+Every tenant-owned record must carry a workspace identifier; do not rely on the browser to supply or enforce ownership.
+
+| Entity | Required information |
+| --- | --- |
+| Workspace / Membership | Identity, owner/member relationship, access boundary |
+| Website | Workspace, display name, canonical origin, authorization record, timestamps |
+| Persona | Versioned name, emoji, goal-relevant behavior, device/input settings, limitations |
+| Run | Website, URL, task, allowed origins, limits, state, idempotency key, cost totals |
+| Persona session | Run, persona snapshot, attempt, browser/device settings, state, heartbeat |
+| Step | Session, sequence, action, outcome, timestamp, URL before/after, evidence references |
+| Artifact | Session/step, private storage key, content type, dimensions, redaction status, expiry |
+| Finding | Evidence-linked observation, category, severity, confidence, reproduction, recommendation |
+| Run event | Run/session, monotonic sequence, type, safe payload, timestamp |
+
+### State machines
+
+- Run: `queued → running → analysing → completed`.
+- Additional terminal outcomes: `completed_with_errors`, `failed`, `cancelled`.
+- Cancellation request: `cancel_requested`, followed by bounded cleanup and `cancelled` acknowledgement.
+- Persona session: `queued → starting → exploring → analysing → completed`, with explicit failed/cancelled alternatives.
+- Define which transitions are legal, who owns them, and how mixed session outcomes produce the run outcome.
+- A browser session failure must never look like a passed test or a zero-issue success.
+
+### API sketch
+
+- `POST /api/websites`, `GET /api/websites`, `GET /api/websites/:id`.
+- `POST /api/runs`: validate request, persist snapshots, enqueue idempotently, return `202` with run ID.
+- `GET /api/runs`: pagination and website/status filters.
+- `GET /api/runs/:id`: durable state, sessions, and summary.
+- `POST /api/runs/:id/cancel`: authorize and request cancellation idempotently.
+- `GET /api/runs/:id/events`: ordered event stream with reconnect cursor.
+- `GET /api/sessions/:id/steps` and `GET /api/sessions/:id/artifacts`.
+- `GET /api/runs/:id/findings` and `GET /api/findings/:id`.
+- `POST /api/sessions/:id/captures`: request a worker-owned capture, subject to rate limits.
+- Authenticated artifact access and run deletion endpoints, with documented retention behavior.
+
+### Event types
+
+Define versioned schemas for `run.status`, `session.status`, `step.started`, `step.completed`, `artifact.ready`, `finding.created`, `session.error`, and `run.finished`.
+
+Every event needs a stable ID, run ID, optional session ID, ordered sequence, timestamp, and validated payload. Persist events before delivery. Never stream secrets, full model prompts, or private reasoning; expose concise action descriptions and observations instead.
+
+## 6. Step-by-step implementation
+
+### Phase 0 — Freeze the brief and resolve deployment constraints
+
+- [ ] Confirm the first task type: recommended starting point is discovering and comparing a product's public plans.
+- [ ] Confirm what website authorization is required. Recommended hosted-release default: owner verification; local development uses owned fixtures.
+- [ ] Confirm hosting, database, artifact storage, queue, authentication, and model provider.
+- [ ] Confirm runtime limits, spending cap, screenshot retention, and screenshot refresh expectations.
+- [ ] Record selected stack and versions in the decision log.
+- [ ] Save the selected prototype as a reference without overwriting it.
+- [ ] Create a short visual checklist for desktop/mobile, persona selection, overview, live view, and reports.
+
+**Gate:** Scope, safety policy, architecture, and acceptance criteria are explicit. No unresolved assumption is silently implemented as product behavior.
+
+### Phase 1 — Scaffold a runnable project
+
+- [ ] Create the chosen source layout and dependency lockfile.
+- [ ] Add formatting, linting, type checking, test scripts, and a root development guide.
+- [ ] Add `.env.example` containing variable names and descriptions, never credentials.
+- [ ] Configure local database, queue, and private artifact storage.
+- [ ] Add health checks for the web process and worker.
+- [ ] Establish shared request/response/event schemas and structured error codes.
+- [ ] Add CI checks for types, lint, tests, and production build.
+
+**Gate:** A fresh checkout starts using documented instructions, with no manually edited source files or committed secrets.
+
+### Phase 2 — Turn the chosen design into application components
+
+- [ ] Extract Soft Spectrum tokens: colors, gradients, text contrast, radii, spacing, shadows, and motion.
+- [ ] Build AppShell, Sidebar, WebsiteSwitcher, PageHeader, and floating quick actions.
+- [ ] Build PersonaShelf, PersonaPill, JourneyViewSwitch, JourneyStage, and JourneyStep.
+- [ ] Build RunCard, NewRunDialog, FindingDrawer, BrowserViewport, PlaybackControls, and CaptureStrip.
+- [ ] Replace full-page string rendering with stateful components that preserve focus and scrolling.
+- [ ] Keep fixture mode visibly separate from real-run mode.
+- [ ] Implement loading, empty, error, unavailable-artifact, and permission-denied states.
+- [ ] Verify keyboard navigation, dialog focus restoration, screen-reader labels, and reduced motion.
+- [ ] Keep diagrams scrollable on narrow screens without making the whole page overflow.
+
+**Gate:** The selected visual direction and interactions survive the migration. No new five-concept selector is introduced.
+
+### Phase 3 — Identity, database, and website tracking
+
+- [ ] Implement authentication and workspace membership checks.
+- [ ] Add migrations for the entities above, foreign keys, indexes, and uniqueness constraints.
+- [ ] Build website creation, validation, listing, and detail views.
+- [ ] Implement the agreed ownership/authorization process and show its status in the UI.
+- [ ] Load run cards and website counts from the database, not hard-coded examples.
+- [ ] Test that one workspace cannot access another workspace's runs, events, or artifacts.
+
+**Gate:** Websites persist across reloads, and cross-workspace access is rejected server-side.
+
+### Phase 4 — Safe deterministic browser execution
+
+Implement this before letting a model control arbitrary navigation.
+
+- [ ] Build an owned fixture site with clear success paths, broken links, a confusing CTA, keyboard-focus issues, and delayed/error pages.
+- [ ] Start one browser job in an isolated environment with a fresh browser context.
+- [ ] Restrict navigation and outbound traffic to approved public origins or explicitly isolated development fixtures.
+- [ ] Block loopback, private/link-local addresses, cloud metadata endpoints, unsafe schemes, credentials in URLs, and non-approved ports.
+- [ ] Validate redirects and DNS resolution, including IPv6 and rebinding scenarios. Enforce restrictions at the network boundary, not just on the initial URL.
+- [ ] Apply the same outbound restrictions to subresources, popups, WebSockets, and other browser requests; prevent uncontrolled downloads.
+- [ ] Configure timeouts, action limits, memory/CPU limits, and cancellation polling.
+- [ ] Prohibit destructive or externally consequential actions. Only allow safe fixture submissions during development.
+- [ ] Record a deterministic click/scroll/type sequence with real screenshots and structured errors.
+- [ ] Close contexts and destroy worker resources on success, error, timeout, or cancellation.
+
+**Gate:** A real browser completes the fixture task and produces inspectable artifacts. Security tests demonstrate blocked internal/private targets before accepting user-submitted URLs.
+
+### Phase 5 — One real persona agent, end to end
+
+- [ ] Define a versioned persona schema focused on behavior and goals, not stereotypes.
+- [ ] Construct an observation from the current page, actionable elements, current URL, and optional screenshot.
+- [ ] Define a bounded action schema: navigate, click, scroll, type into allowed fields, wait, capture, finish.
+- [ ] Validate each model action against current browser state and server-side policy before executing it.
+- [ ] Keep website content untrusted: page text cannot change system policy, request credentials, override allowed domains, or authorize side effects.
+- [ ] Separate action choice from deterministic execution and observation storage.
+- [ ] Limit steps, elapsed time, model tokens, and cost; detect loops and repeated failed actions.
+- [ ] Store persona/model/prompt versions and reproducibility metadata without storing private chain-of-thought.
+- [ ] Distinguish task success, task failure, model failure, and infrastructure failure.
+- [ ] Connect one submitted run to one persisted persona session and one real report.
+
+**Gate:** Nori can explain one actual fixture journey using recorded steps and screenshots. It does not fabricate evidence or continue indefinitely.
+
+### Phase 6 — Durable jobs and multiple personas
+
+- [ ] Queue each persona session as a separate job with bounded concurrency.
+- [ ] Isolate cookies, storage, browser state, and execution budgets between personas.
+- [ ] Implement leases, heartbeats, stalled-worker detection, and safe retries.
+- [ ] Preserve attempts and prevent duplicate execution from producing duplicate findings or billing totals.
+- [ ] Implement idempotent run creation and cancellation.
+- [ ] Aggregate partial outcomes when one persona fails and others finish.
+- [ ] Persist progress and resume the UI after reload; a worker restart must not erase run history.
+
+**Gate:** A three-persona run completes or reports partial failure accurately. Cancellation and worker crashes do not leave browsers running or runs stuck forever.
+
+### Phase 7 — Real overview paths and persona selection
+
+- [ ] Build paths from persisted steps, preserving each persona's actual order and branches.
+- [ ] Do not force every website into Discover / Explore / Sign up / Get started; derive or label stages from the recorded task.
+- [ ] Connect persona selection to the correct session and corresponding issues.
+- [ ] Populate issue markers from recorded findings; show analysis-pending states before counts exist.
+- [ ] Support all-persona overview, selected-persona trace, and issues-only filtering.
+- [ ] Open each step's screenshot, action, URL, timestamp, and observation.
+
+**Gate:** Overview paths and issue counts reconcile with database records, including uneven path lengths and failed sessions.
+
+### Phase 8 — Live transmission and captured moments
+
+- [ ] Emit real status and action events from the worker to the persisted event stream.
+- [ ] Implement authenticated SSE with cursor-based reconnect, deduplication, and a database refresh fallback.
+- [ ] Capture screenshots after meaningful actions and on a capped interval during exploration; start with a proposed 2–5 second refresh budget and measure overhead.
+- [ ] Publish an artifact-ready event only after private upload and redaction are complete.
+- [ ] Show the selected persona's latest screenshot, current action, last-update time, and connection state.
+- [ ] Clearly distinguish Running, Waiting, Disconnected, Reconnecting, Failed, Cancelled, and Completed.
+- [ ] Switching personas must switch both feed and capture strip without stale frames from the previous session.
+- [ ] Let users open historical captures and return to the latest frame.
+- [ ] Separate viewer playback from agent execution: pausing replay must not imply pausing the actual browser agent.
+- [ ] A manual capture requests a new worker screenshot or reports unavailability; do not silently return an old frame as new.
+- [ ] Use authenticated requests or short-lived artifact links; recover gracefully from link expiry.
+- [ ] Provide a readable alternative description for screenshots and status changes.
+
+**Gate:** Two real sessions can be observed independently. Frames are timestamped, refresh within the agreed budget, and remain correctly associated through reconnects and persona switching.
+
+### Phase 9 — Analysis and evidence-backed reports
+
+- [ ] Feed the analyser recorded actions, browser errors, screenshots, and concise observations—not invented path summaries.
+- [ ] Define finding categories: functional issue, navigation friction, clarity, accessibility signal, and performance observation.
+- [ ] Define severity rubric based on task impact and reproducibility; keep confidence separate from severity.
+- [ ] Require each finding to reference real step/artifact IDs. Reject unsupported evidence references.
+- [ ] Separate observed facts from inferred explanations and suggestions.
+- [ ] Deduplicate related findings across personas while preserving each persona's supporting evidence.
+- [ ] Add reproduction steps, expected versus observed behavior, limitations, and concrete recommendations.
+- [ ] Provide honest no-findings, incomplete-analysis, and insufficient-evidence states.
+- [ ] Add deterministic accessibility checks where appropriate, but never label them a full accessibility certification.
+- [ ] Link report findings back to the exact journey step and captured moment.
+
+**Gate:** Each reported issue can be inspected against evidence; known fixture failures are found without claiming unrelated invented bugs.
+
+### Phase 10 — Security, privacy, reliability, and cost review
+
+- [ ] Review tenant isolation across every endpoint and object-storage access path.
+- [ ] Redact sensitive inputs, tokens, headers, cookies, logs, and screenshot regions before exposure to models or viewers wherever possible.
+- [ ] Prefer staging/test data; block workflows where safe capture cannot be guaranteed.
+- [ ] Document screenshot/model-provider data flow and retention before hosted use.
+- [ ] Set run/artifact expiry and implement deletion from both database and object storage, accounting for backups and queued jobs.
+- [ ] Apply per-user/workspace concurrency limits, API rate limits, and hard cost ceilings.
+- [ ] Exercise prompt injection, unsafe navigation, duplicate requests, retry storms, and malicious pages.
+- [ ] Add structured logs/metrics for queue delay, browser crashes, model errors, frame latency, artifact failures, and cost.
+- [ ] Document incident response and a global stop switch for browser execution.
+
+**Gate:** No critical security blocker remains, cleanup is bounded, and cost controls work under failure conditions.
+
+### Phase 11 — Release validation and staged deployment
+
+- [ ] Unit tests: schemas, state transitions, policies, severity rules, and model-output validation.
+- [ ] Integration tests: API → queue → worker → database/storage → events → report.
+- [ ] End-to-end tests: sign in, add website, create run, select persona, live view, inspect finding, cancel, reload, and delete.
+- [ ] Failure tests: invalid URL, internal address, redirect escape, timeout, blocked access, missing image, model rate limit, worker crash, and expired session.
+- [ ] Visual review: compare the production dashboard to Journey Atlas and the supplied homepage palette on desktop and mobile.
+- [ ] Accessibility review: keyboard-only journey, focus visibility, dialogs, announcements, contrast, and reduced motion.
+- [ ] Evaluate on owned fixtures before limited authorized staging websites; record false positives, missed seeded issues, duration, and cost.
+- [ ] Deploy a staging web app and isolated workers with private storage and managed secrets.
+- [ ] Verify migrations, backup/restore, health checks, queue recovery, and rollback procedures.
+- [ ] Run a small authorized pilot. Expand concurrency only after reliability and cost measurements are acceptable.
+
+**Gate:** A fresh user can finish the complete flow, inspect genuine evidence, and understand failures without developer intervention.
+
+## 7. First engineering session: exact order
+
+1. Resolve Phase 0 decisions and record them below.
+2. Scaffold the application, worker, contracts, and local services.
+3. Add one run/session schema and create-run API contract.
+4. Build an isolated deterministic browser test against the owned fixture.
+5. Store one real screenshot and one completed step.
+6. Render that screenshot and step in a small production-component view.
+7. Only after that works, introduce the model's action-selection loop.
+
+The first vertical slice is **one task, one persona, one browser session, one evidence-backed result**. Do not begin with multi-agent orchestration, streaming video, or automated UI fixes.
+
+## 8. Completion checklist
+
+- [ ] The selected design is preserved, including rounded persona pills and Soft Spectrum color balance.
+- [ ] New runs execute real authorized tasks, not the old scripted example.
+- [ ] Every persona has an isolated, bounded session.
+- [ ] Journey steps, live frames, captures, and report findings refer to the same underlying evidence.
+- [ ] Website/run history survives reload and is workspace-private.
+- [ ] Failure, cancellation, reconnect, and cleanup paths are tested.
+- [ ] Findings communicate uncertainty and do not overclaim human-user or accessibility coverage.
+- [ ] Setup, deployment, testing, retention, and operating instructions are documented.
+- [ ] The full release gate in Phase 11 is satisfied.
+
+## 9. Decision log
+
+| Decision | Status | Notes |
+| --- | --- | --- |
+| Visual direction | Confirmed | Journey Atlas 01; homepage Soft Spectrum |
+| Overview / selected-persona live view | Confirmed | Keep both floating controls |
+| Framework, queue, database, storage | Pending | Proposed defaults in section 4 |
+| Model provider and model | Pending | Compare tool reliability, cost, privacy, and deployment needs |
+| Authentication provider | Pending | Must support server-side workspace authorization |
+| First task and authorized-site policy | Pending | Recommend public-plan comparison on owned fixtures first |
+| Session limits and cost caps | Pending | Must be fixed before uncontrolled browser exploration |
+| Artifact retention / deletion policy | Pending | Must be fixed before external hosted use |
+| Live screenshot cadence | Proposed | 2–5 seconds, action-triggered captures, measured under load |
+
+## 10. Session handoff
+
+- Current phase: Phase 0.
+- Completed: inspected the local prototypes and inspiration structure; wrote this plan.
+- Implementation completed: none.
+- Current blocker: none for planning; stack/provider and safety-policy decisions precede implementation.
+- Next concrete task: resolve Phase 0 decisions, then scaffold Phase 1.
+- Latest checks: planning document only; no production application tests exist in this repository yet.
+
+For later sessions, append: date, tasks checked off, changed areas, checks actually run, failures/limitations, and the next single task.
