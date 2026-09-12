@@ -4,7 +4,7 @@
 // `changeFrame()`, `showFinding()`, and the personas-library dialog action. See
 // plan/PHASE_2_PLAN.md section 6.
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   JourneyViewSwitch,
   PersonaShelf,
@@ -222,40 +222,65 @@ function OverviewFlowArrow() {
 
 function OverviewAtlas() {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const flowRef = useRef<HTMLDivElement>(null);
+  const [restHeight, setRestHeight] = useState<number | null>(null);
+  const firstCardRef = useRef<HTMLButtonElement>(null);
 
   const toggleCard = (index: number) => {
-    // Measure each card's current (resting) width before the class change kicks in, so the
-    // two non-expanded cards get pinned to exactly their present size via
-    // --overview-card-rest-width instead of an approximate 33% fallback — keeps them visually
-    // unchanged while only the clicked card grows.
-    const flow = flowRef.current;
-    if (flow) {
-      const cards = flow.querySelectorAll<HTMLElement>('.overview-flow-card');
-      cards.forEach((card) => {
-        card.style.setProperty('--overview-card-rest-width', `${card.offsetWidth}px`);
-      });
-    }
     setExpandedIndex((previous) => (previous === index ? null : index));
   };
 
+  // Keeps --overview-card-rest-height (used by .overview-flow-arrow, see components.css) in
+  // sync with the first card's actual resting (16:9, un-expanded) rendered height, so the
+  // arrows center accurately on the small cards' top strip at any panel width — only measured
+  // while nothing is expanded, since that's the only state where the first card's own height
+  // equals every card's resting height.
+  useEffect(() => {
+    const card = firstCardRef.current;
+    if (!card || expandedIndex !== null) return;
+    const updateHeight = () => setRestHeight(card.getBoundingClientRect().height);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(card);
+    return () => observer.disconnect();
+  }, [expandedIndex]);
+
+  // Each card's grid column gets an `fr` share via --overview-card-N: the expanded card takes a
+  // larger share, its two siblings an equal smaller share, all three summing to a constant total
+  // so the row's overall width and center never shift — see .overview-flow's
+  // grid-template-columns in components.css.
+  const columnShare = (index: number) =>
+    `${expandedIndex === null ? 1 : expandedIndex === index ? 3 : 0.6}fr`;
+  const columnVars = {
+    '--overview-card-0': columnShare(0),
+    '--overview-card-1': columnShare(1),
+    '--overview-card-2': columnShare(2),
+    ...(restHeight ? { '--overview-card-rest-height': `${restHeight}px` } : {}),
+  } as React.CSSProperties;
+
   return (
     <section className="map-panel">
-      <div
-        ref={flowRef}
-        className={`overview-flow${expandedIndex !== null ? ' overview-flow-expanded' : ''}`}
-      >
-        {[0, 1, 2].map((index) => (
-          <Fragment key={index}>
-            <button
-              type="button"
-              className={`overview-flow-card${expandedIndex === index ? ' expanded' : ''}`}
-              aria-pressed={expandedIndex === index}
-              onClick={() => toggleCard(index)}
-            />
-            {index < 2 && <OverviewFlowArrow />}
-          </Fragment>
-        ))}
+      <div className="overview-flow" style={columnVars}>
+        <button
+          ref={firstCardRef}
+          type="button"
+          className={`overview-flow-card${expandedIndex === 0 ? ' expanded' : ''}`}
+          aria-pressed={expandedIndex === 0}
+          onClick={() => toggleCard(0)}
+        />
+        <OverviewFlowArrow />
+        <button
+          type="button"
+          className={`overview-flow-card${expandedIndex === 1 ? ' expanded' : ''}`}
+          aria-pressed={expandedIndex === 1}
+          onClick={() => toggleCard(1)}
+        />
+        <OverviewFlowArrow />
+        <button
+          type="button"
+          className={`overview-flow-card${expandedIndex === 2 ? ' expanded' : ''}`}
+          aria-pressed={expandedIndex === 2}
+          onClick={() => toggleCard(2)}
+        />
       </div>
     </section>
   );
