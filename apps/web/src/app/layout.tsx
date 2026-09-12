@@ -20,11 +20,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // The shell (sidebar site switcher, header) needs the real website list on every route, not
   // just /websites — fetched once here and passed down as props/seed data rather than each page
   // re-fetching independently. Middleware (apps/web/src/middleware.ts) already gates every route
-  // except /api/health, /sign-in, /sign-up, /create-organization behind sign-in, and separately
-  // redirects a signed-in-but-orgless user to /create-organization before this layout even
-  // renders — so this fetch failing here means something else went wrong (DB down, etc.), not
-  // "no active org yet". Wrapped so that failure renders the shell with an empty website list
-  // rather than crashing the whole app.
+  // except /api/health, /sign-in, /sign-up behind sign-in, so this fetch failing here means
+  // something else went wrong (DB down, etc.). Wrapped so that failure renders the shell with an
+  // empty website list rather than crashing the whole app.
   let websites: Awaited<ReturnType<typeof listWebsitesForWorkspace>> = [];
   try {
     const workspace = await requireWorkspace();

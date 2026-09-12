@@ -9,7 +9,6 @@ import { useMemo } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { OrganizationSwitcher } from '@clerk/nextjs';
 import {
   AppShell,
   Sidebar,
@@ -125,24 +124,6 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
               router.push('/runs');
             }}
             renderNavLink={(item, content) => <Link href={item.href}>{content}</Link>}
-            workspaceSwitcher={
-              <OrganizationSwitcher
-                hidePersonal
-                afterCreateOrganizationUrl="/"
-                afterSelectOrganizationUrl="/"
-                afterLeaveOrganizationUrl="/create-organization"
-                appearance={{
-                  elements: {
-                    rootBox: { width: '100%' },
-                    organizationSwitcherTrigger: {
-                      width: '100%',
-                      padding: 0,
-                      justifyContent: 'flex-start',
-                    },
-                  },
-                }}
-              />
-            }
           />
         }
         header={

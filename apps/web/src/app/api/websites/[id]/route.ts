@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWebsiteById } from '@nori/db';
 import type { ApiError } from '@nori/contracts';
-import { NoActiveOrganizationError, UnauthorizedError, requireWorkspace } from '../../../../lib/workspace-auth';
+import { UnauthorizedError, requireWorkspace } from '../../../../lib/workspace-auth';
 
 function errorResponse(error: ApiError, status: number) {
   return NextResponse.json(error, { status });
@@ -22,9 +22,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return errorResponse({ code: 'unauthorized', message: error.message }, 401);
-    }
-    if (error instanceof NoActiveOrganizationError) {
-      return errorResponse({ code: 'forbidden', message: error.message }, 403);
     }
     console.error('GET /api/websites/[id] failed', error);
     return errorResponse({ code: 'internal_error', message: 'Unexpected error.' }, 500);

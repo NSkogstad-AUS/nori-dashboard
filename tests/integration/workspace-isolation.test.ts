@@ -25,19 +25,19 @@ after(async () => {
   await getDb().end();
 });
 
-const TEST_ORG_A = 'org_isolation_test_a';
-const TEST_ORG_B = 'org_isolation_test_b';
+const TEST_USER_A = 'user_isolation_test_a';
+const TEST_USER_B = 'user_isolation_test_b';
 
 async function cleanup() {
   const sql = getDb();
-  await sql`delete from workspaces where clerk_org_id in (${TEST_ORG_A}, ${TEST_ORG_B})`;
+  await sql`delete from workspaces where clerk_user_id in (${TEST_USER_A}, ${TEST_USER_B})`;
 }
 
 test('cross-workspace isolation', async (t) => {
   await cleanup();
 
-  const workspaceA = await ensureWorkspace(TEST_ORG_A, 'Isolation Test Workspace A');
-  const workspaceB = await ensureWorkspace(TEST_ORG_B, 'Isolation Test Workspace B');
+  const workspaceA = await ensureWorkspace(TEST_USER_A, 'Isolation Test Workspace A');
+  const workspaceB = await ensureWorkspace(TEST_USER_B, 'Isolation Test Workspace B');
 
   const website = await createWebsite(workspaceA.id, {
     displayName: 'Isolation Test Site',
