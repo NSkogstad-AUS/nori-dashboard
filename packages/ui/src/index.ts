@@ -37,6 +37,9 @@ export type { PersonaShelfProps, PersonaShelfPerson } from './components/Persona
 export { PersonaPill } from './components/PersonaPill';
 export type { PersonaPillProps } from './components/PersonaPill';
 
+export { PersonaCard } from './components/PersonaCard';
+export type { PersonaCardProps } from './components/PersonaCard';
+
 export { JourneyViewSwitch } from './components/JourneyViewSwitch';
 export type { JourneyViewSwitchProps } from './components/JourneyViewSwitch';
 

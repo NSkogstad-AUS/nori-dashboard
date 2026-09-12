@@ -20,8 +20,7 @@ import {
   type PersonaShelfPerson,
 } from '@nori/ui';
 import { JourneyViewProvider, useJourneyView } from '../../context/journey-view-context';
-import { useWorkspace } from '../../context/workspace-context';
-import { personas, websites, runs } from '../../fixtures/index';
+import { personas, runs } from '../../fixtures/index';
 import {
   STAGE_NAMES,
   findingAt,
@@ -41,6 +40,13 @@ const PERSONA_COLOR_CLASS: Record<string, string> = {
   Riley: 'lime',
 };
 
+const PERSONA_PHOTO_SRC: Record<string, string> = {
+  Alex: '/personas/alex.png',
+  Jamie: '/personas/jamie.png',
+  Sam: '/personas/sam.png',
+  Riley: '/personas/riley.png',
+};
+
 // The prototype's atlas/live view both operate on a single canonical illustrative run — the
 // "First visit → first project" run (Acme, run1) — regardless of the sidebar's selected website.
 // This mirrors that: Journeys always explores this one sample run's data.
@@ -56,17 +62,19 @@ export default function JourneysClient() {
 
 function JourneysContent() {
   const { mode, setMode, setPlaying } = useJourneyView();
-  const { selectedWebsiteId } = useWorkspace();
-  const website = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0]!;
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [plainStepOpen, setPlainStepOpen] = useState<{ personId: string; stageIndex: number } | null>(
-    null,
+  const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
+    () => new Set(personas.map((persona) => persona.id)),
   );
+  const [plainStepOpen, setPlainStepOpen] = useState<{
+    personId: string;
+    stageIndex: number;
+  } | null>(null);
 
   const findingPerson = findingOpen ? personaForFinding(findingOpen) : undefined;
-  const findingStageIndex = findingOpen ? stageIndexForFinding(findingOpen) ?? 0 : 0;
+  const findingStageIndex = findingOpen ? (stageIndexForFinding(findingOpen) ?? 0) : 0;
 
   // Mirrors the prototype's `show()`, which always sets `state.playing = false` before
   // displaying any dialog content, regardless of which dialog — so any trigger for any dialog
@@ -87,18 +95,16 @@ function JourneysContent() {
   return (
     <>
       <div className="perspective-panel">
-        <JourneyViewSwitch mode={mode} onChange={setMode} />
         <PersonaShelfSection onOpenLibrary={openLibrary} />
       </div>
-      {mode === 'live' ? (
-        <LiveView onOpenFinding={openFinding} />
-      ) : (
-        <OverviewAtlas
-          websiteUrl={new URL(website.origin).hostname}
-          onOpenFinding={openFinding}
-          onOpenStep={openPlainStep}
-        />
-      )}
+      <div className="journey-experience">
+        <JourneyViewSwitch mode={mode} onChange={setMode} />
+        {mode === 'live' ? (
+          <LiveView onOpenFinding={openFinding} />
+        ) : (
+          <OverviewAtlas onOpenFinding={openFinding} onOpenStep={openPlainStep} />
+        )}
+      </div>
       <FindingDrawer
         open={findingOpen !== null}
         onClose={() => setFindingOpen(null)}
@@ -121,8 +127,21 @@ function JourneysContent() {
           name: persona.name,
           emoji: persona.emoji,
           role: persona.goal,
-          colorClass: PERSONA_COLOR_CLASS[persona.name] ?? 'peach',
+          behavior: persona.behavior,
+          photoSrc: PERSONA_PHOTO_SRC[persona.name] ?? '',
+          attached: attachedPersonaIds.has(persona.id),
         }))}
+        onToggleAttached={(id) =>
+          setAttachedPersonaIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(id)) {
+              next.delete(id);
+            } else {
+              next.add(id);
+            }
+            return next;
+          })
+        }
       />
       {/* Ports the prototype's plain step detail dialog (a step with no finding) — purely
           informational text with no form/interactive content, same as the prototype's version,
@@ -181,36 +200,18 @@ function PersonaShelfSection({ onOpenLibrary }: { onOpenLibrary: () => void }) {
 }
 
 interface OverviewAtlasProps {
-  websiteUrl: string;
   onOpenFinding: (finding: Finding) => void;
   onOpenStep: (personId: string, stageIndex: number) => void;
 }
 
-function OverviewAtlas({ websiteUrl, onOpenFinding, onOpenStep }: OverviewAtlasProps) {
-  const { selectedPersonId, onlyIssues, setOnlyIssues, setSelectedPersonId } = useJourneyView();
-
+function OverviewAtlas({ onOpenFinding, onOpenStep }: OverviewAtlasProps) {
+  const { selectedPersonId, onlyIssues } = useJourneyView();
   const visiblePersonas = selectedPersonId
     ? personas.filter((persona) => persona.id === selectedPersonId)
     : personas;
 
   return (
     <>
-      <div className="journey-tools">
-        <span>{websiteUrl}, illustrative journey</span>
-        <div>
-          <button type="button" className="pill small" onClick={() => setSelectedPersonId(null)}>
-            All perspectives
-          </button>
-          <button
-            type="button"
-            className="pill small"
-            aria-pressed={onlyIssues}
-            onClick={() => setOnlyIssues(!onlyIssues)}
-          >
-            {onlyIssues ? 'Show all steps' : 'Issues only'}
-          </button>
-        </div>
-      </div>
       <section className="map-panel">
         <div className="panel-head">
           <div>
@@ -445,7 +446,7 @@ function PlainStepNotice({
   onClose: () => void;
 }) {
   const persona = personId ? personas.find((candidate) => candidate.id === personId) : undefined;
-  const actionText = personId ? observationAt(CANONICAL_RUN.id, personId, stageIndex) ?? '' : '';
+  const actionText = personId ? (observationAt(CANONICAL_RUN.id, personId, stageIndex) ?? '') : '';
   return (
     <Dialog open={open} onClose={onClose} labelledBy="plain-step-title">
       <button className="close circle" data-close aria-label="Close dialog" onClick={onClose}>

@@ -604,32 +604,35 @@ main {
 
 .view-switch {
   display: flex;
-  gap: var(--space-lg);
-  margin: 0 2px 18px;
-  padding: 0;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px 12px;
   border: 0;
-  border-bottom: 1px solid var(--line);
-  background: none;
+  border-radius: 0 0 30px 30px;
+  background: var(--paper);
 }
 
 .view-switch .pill {
-  border: 0;
-  background: none;
-  border-radius: 0;
-  padding: 10px 2px 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 12px 22px;
   font-size: var(--text-xs);
   color: var(--muted);
   position: relative;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px #24252d08;
 }
 
 .view-switch .pill[aria-pressed='true'] {
-  background: none;
-  color: var(--ink);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
   font-weight: 600;
 }
 
 .view-switch .pill[aria-pressed='true']::after {
-  content: '';
+  content: none;
   position: absolute;
   left: 0;
   right: 0;
@@ -638,11 +641,65 @@ main {
   background: var(--ink);
 }
 
+.journey-experience {
+  position: relative;
+  padding-top: 70px;
+  border: 1px solid var(--line);
+  border-radius: 36px;
+  background: #fff;
+}
+
+.journey-experience > .view-switch {
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+}
+
+.journey-experience > .view-switch::before,
+.journey-experience > .view-switch::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+}
+
+.journey-experience > .view-switch::before {
+  right: 100%;
+  background: radial-gradient(circle at 0 100%, transparent 24px, var(--paper) 24.5px);
+}
+
+.journey-experience > .view-switch::after {
+  left: 100%;
+  background: radial-gradient(circle at 100% 100%, transparent 24px, var(--paper) 24.5px);
+}
+
+.journey-experience > .map-panel,
+.journey-experience > .transmission {
+  border: 0;
+  border-radius: 0 0 36px 36px;
+  background: transparent;
+}
+
+@media (max-width: 600px) {
+  .journey-experience {
+    border-radius: 28px;
+    padding-top: 65px;
+  }
+
+  .journey-experience .view-switch .pill {
+    padding: 10px 16px;
+  }
+}
+
 /* ---------- Journey tools / stage map ---------- */
 
 .journey-tools {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-sm);
   font-size: var(--text-xs);
@@ -853,6 +910,124 @@ main {
   align-items: center;
   font-size: var(--text-2xs);
   color: var(--muted);
+}
+
+/* ---------- Persona card ---------- */
+
+.persona-card {
+  width: 100%;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.persona-card-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.persona-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.persona-card-attach {
+  position: absolute;
+  top: var(--space-xs);
+  right: var(--space-xs);
+  z-index: 1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 90%);
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: 1;
+  box-shadow: var(--shadow-sm);
+}
+
+.persona-card-attach.attached {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .persona-card-attach {
+    transition:
+      transform 0.18s,
+      background 0.18s,
+      color 0.18s;
+  }
+
+  .persona-card-attach.just-toggled {
+    transform: scale(1.15);
+  }
+}
+
+.persona-card-emoji {
+  position: absolute;
+  bottom: var(--space-xs);
+  left: var(--space-xs);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgb(255 255 255 / 90%);
+  font-size: var(--text-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.persona-card-body {
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.persona-card-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.persona-card-heading h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 500;
+}
+
+.persona-card-behavior {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.persona-card-action {
+  margin-top: var(--space-2xs);
+  width: 100%;
+  padding: 10px var(--space-sm);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-align: center;
+  color: var(--ink);
+}
+
+.persona-card-action:hover {
+  background: var(--ink);
+  color: var(--paper);
 }
 
 /* ---------- Empty / error states ---------- */
@@ -1351,6 +1526,21 @@ dialog p {
 .library p {
   font-size: var(--text-xs);
   color: var(--muted);
+}
+
+/* PersonaCard renders its own bordered surface, so it opts out of .library > div's box
+   treatment here to avoid a double border/padding. */
+.persona-library-grid.library > .persona-card {
+  padding: 0;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: none;
+}
+
+@media (max-width: 640px) {
+  .persona-library-grid.library {
+    grid-template-columns: 1fr;
+  }
 }
 
 .library small {
