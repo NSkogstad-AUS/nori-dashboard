@@ -26,6 +26,10 @@ export interface SidebarProps {
   onSelectSite: (siteId: string) => void;
   /** Renders nav items as plain anchors; caller supplies a Link-rendering wrapper if desired. */
   renderNavLink?: (item: SidebarNavItem, children: React.ReactNode) => React.ReactNode;
+  /** Replaces the static "Your workspace" footer with a real workspace switcher (e.g. Clerk's
+   *  <OrganizationSwitcher>) — a slot rather than a direct dependency, since this package stays
+   *  framework/auth-provider-agnostic. Falls back to the static placeholder if not supplied. */
+  workspaceSwitcher?: React.ReactNode;
 }
 
 export function Sidebar({
@@ -35,6 +39,7 @@ export function Sidebar({
   onToggleCollapsed,
   onSelectSite,
   renderNavLink,
+  workspaceSwitcher,
 }: SidebarProps) {
   return (
     <aside className="rail">
@@ -96,11 +101,15 @@ export function Sidebar({
         ))}
       </div>
       <div className="rail-bottom">
-        <span className="avatar">Y</span>
-        <strong>
-          Your workspace
-          <small>Personal, demo workspace</small>
-        </strong>
+        {workspaceSwitcher ?? (
+          <>
+            <span className="avatar">Y</span>
+            <strong>
+              Your workspace
+              <small>Personal, demo workspace</small>
+            </strong>
+          </>
+        )}
       </div>
     </aside>
   );

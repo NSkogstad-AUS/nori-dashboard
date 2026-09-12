@@ -1,9 +1,11 @@
+import { NextResponse } from 'next/server';
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// The health check and Clerk's own sign-in/sign-up pages stay public (a protected sign-in page
-// can never be reached — protecting it causes an infinite auth.protect() -> redirect-to-sign-in
-// -> auth.protect() loop, ERR_TOO_MANY_REDIRECTS); everything else requires sign-in. See
-// plan/PHASE_3_PLAN.md section 4.2.
+// The health check, Clerk's own sign-in/sign-up pages, and the create-organization page stay
+// public to auth.protect() (a protected sign-in page can never be reached — protecting it
+// causes an infinite auth.protect() -> redirect-to-sign-in -> auth.protect() loop,
+// ERR_TOO_MANY_REDIRECTS); everything else requires sign-in. See plan/PHASE_3_PLAN.md
+// section 4.2.
 //
 // NOTE: Clerk's SDK flags createRouteMatcher()/auth.protect() as deprecated in favor of
 // resource-based auth checks (calling auth()/auth.protect() directly in each route/page instead
@@ -18,11 +20,32 @@ const isPublicRoute = createRouteMatcher([
   '/api/health',
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/create-organization(.*)',
 ]);
 
+// Deliberately not part of isPublicRoute's exclusion list below — visiting this page still
+// requires sign-in (auth.protect() runs for it), only the *organization* requirement is skipped,
+// so a signed-out user is still sent to /sign-in first, same as any other route.
+const isCreateOrganizationRoute = createRouteMatcher(['/create-organization(.*)']);
+
 export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    await auth.protect();
+  if (isPublicRoute(request)) {
+    if (isCreateOrganizationRoute(request)) {
+      // Still requires sign-in, just not an active org — see the comment above.
+      await auth.protect();
+    }
+    return;
+  }
+
+  const { userId, orgId } = await auth.protect();
+  // A signed-in user with no active Clerk Organization (Nori's workspace concept — see
+  // plan/PHASE_3_PLAN.md section 2) can't use anything else in the app yet. Redirecting here,
+  // where the actual request path is known, avoids the same class of infinite-redirect bug the
+  // sign-in/sign-up exclusion above exists to prevent: apps/web/src/app/layout.tsx wraps every
+  // route including /create-organization itself, so a root-layout-level redirect on this
+  // condition would redirect /create-organization to itself.
+  if (!orgId && userId) {
+    return NextResponse.redirect(new URL('/create-organization', request.url));
   }
 });
 
