@@ -193,3 +193,89 @@ test('allowPrivateTargets — still enforces structural checks (origin allowlist
   });
   assert.equal(result.allowed, false, 'allowPrivateTargets must not bypass the origin allowlist');
 });
+
+// allowSubdomains — opt-in widening so a run against a real site can load the assets that site
+// serves from its own sibling hosts (cdn./static./assets.). The risk this has to not introduce
+// is a lookalike domain passing as a subdomain, so the matching is asserted here in both
+// directions: the sibling host is reachable, and every near-miss spelling is not.
+
+const SUB_ALLOWED = { allowedOrigins: ['https://example.com'], allowSubdomains: true };
+
+test('allowSubdomains — off by default: a subdomain is not implicitly allowlisted', () => {
+  const result = checkUrlStructure('https://cdn.example.com/app.js', {
+    allowedOrigins: ['https://example.com'],
+  });
+  assert.equal(result.allowed, false, 'omitting allowSubdomains must keep exact-origin matching');
+  assert.equal(result.reason, 'origin_not_allowlisted:https://cdn.example.com');
+});
+
+test('allowSubdomains — allows the exact origin and its subdomains', () => {
+  assert.equal(checkUrlStructure('https://example.com/', SUB_ALLOWED).allowed, true, 'exact');
+  assert.equal(
+    checkUrlStructure('https://cdn.example.com/app.js', SUB_ALLOWED).allowed,
+    true,
+    'single-label subdomain',
+  );
+  assert.equal(
+    checkUrlStructure('https://deep.cdn.example.com/app.js', SUB_ALLOWED).allowed,
+    true,
+    'nested subdomain',
+  );
+});
+
+test('allowSubdomains — rejects lookalike domains that merely share a suffix', () => {
+  for (const url of [
+    'https://notexample.com/',
+    'https://evil-example.com/',
+    'https://example.com.evil.com/',
+    'https://fooexample.com/',
+  ]) {
+    const result = checkUrlStructure(url, SUB_ALLOWED);
+    assert.equal(result.allowed, false, `must reject ${url} — matching is on a dot boundary`);
+  }
+});
+
+test('allowSubdomains — does not relax scheme or port for a subdomain', () => {
+  assert.equal(
+    checkUrlStructure('http://cdn.example.com/', SUB_ALLOWED).allowed,
+    false,
+    'https allowlist entry must not permit an http subdomain',
+  );
+  assert.equal(
+    checkUrlStructure('https://cdn.example.com:8443/', SUB_ALLOWED).allowed,
+    false,
+    'a subdomain on a non-default port must still fail the port check',
+  );
+});
+
+test('allowSubdomains — does not climb upward from a narrower allowlisted host', () => {
+  const result = checkUrlStructure('https://example.com/', {
+    allowedOrigins: ['https://cdn.example.com'],
+    allowSubdomains: true,
+  });
+  assert.equal(result.allowed, false, 'being authorized for cdn. must not authorize the parent');
+});
+
+test('allowSubdomains — an allowlisted bare IP gains no subdomains', () => {
+  const result = checkUrlStructure('https://sub.93.184.216.34/', {
+    allowedOrigins: ['https://93.184.216.34'],
+    allowSubdomains: true,
+  });
+  assert.equal(result.allowed, false, 'an IP has no subdomains');
+});
+
+test('allowSubdomains — still rejects a subdomain that resolves to a private IP', async () => {
+  for (const address of ['127.0.0.1', '169.254.169.254', '10.0.0.5']) {
+    const result = await checkNavigationTarget('https://cdn.example.com/', {
+      ...SUB_ALLOWED,
+      resolveHostname: async () => [address],
+    });
+    assert.equal(result.allowed, false, `subdomain resolving to ${address} must stay blocked`);
+    assert.equal(result.reason, `resolved_to_private_ip:${address}`);
+  }
+});
+
+test('allowSubdomains — unrelated third-party hosts remain blocked', () => {
+  const result = checkUrlStructure('https://tracker.example.net/pixel.gif', SUB_ALLOWED);
+  assert.equal(result.allowed, false, 'widening to subdomains must not admit other registrables');
+});

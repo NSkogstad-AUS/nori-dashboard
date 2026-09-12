@@ -167,6 +167,12 @@ export async function processJob(
         return port ? [Number(port)] : [];
       }),
       allowPrivateTargets: fixtureMode,
+      // Real sites serve their own assets from sibling hosts (cdn./static./assets.), and
+      // blocking those leaves the page unable to render at all. Subdomains of the run's own
+      // allowlisted origins are in scope for a run authorized against that site; unrelated
+      // third-party hosts still are not. See isOriginAllowed in packages/agent/src/
+      // safe-navigation.ts for the exact matching rule and what it deliberately excludes.
+      allowSubdomains: true,
     };
     const lifecycleOptions = {
       monitorIntervalMs: 250,

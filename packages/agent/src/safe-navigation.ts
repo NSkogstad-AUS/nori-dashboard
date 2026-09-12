@@ -17,6 +17,15 @@ export interface NavigationCheckOptions {
   /** Ports allowed beyond the default 80/443 — empty by default (only default ports allowed). */
   allowedPorts?: readonly number[];
   /**
+   * Also accept subdomains of each allowlisted origin, so a run against https://example.com may
+   * load https://cdn.example.com. Real sites serve assets from sibling hosts (cdn./static./
+   * assets.), and blocking those leaves the page unable to render — see the origin-matching note
+   * on isOriginAllowed for exactly how far this widens the boundary, and what it deliberately
+   * does not widen (scheme, port, private-IP and DNS-rebinding checks all still apply
+   * unchanged).
+   */
+  allowSubdomains?: boolean;
+  /**
    * Skips the private/reserved-IP rejection in checkResolvedTarget/checkNavigationTarget.
    * Defaults to false — every real navigation (including anything Phase 5's model-driven
    * personas will ever request) must leave this unset. The one legitimate use is Phase 4's own
@@ -46,6 +55,51 @@ export const defaultResolveHostname = async (hostname: string): Promise<readonly
 
 const ALLOWED_SCHEMES = new Set(['http:', 'https:']);
 const DEFAULT_PORTS = new Set([80, 443]);
+
+/**
+ * Origin-allowlist match for a candidate URL.
+ *
+ * Exact origin equality (scheme + host + port) is always the baseline. With `allowSubdomains`,
+ * a candidate also matches when its hostname is a *strict subdomain* of an allowlisted origin's
+ * hostname and the scheme and port match that entry exactly — so a run against
+ * https://example.com additionally accepts https://cdn.example.com.
+ *
+ * The match is deliberately narrow in ways that matter for SSRF:
+ *
+ *  * Suffix comparison is on a dot boundary (`.example.com`), never a bare string suffix — so
+ *    `notexample.com` and `evil-example.com` do NOT match `example.com`.
+ *  * Scheme and port must still match the allowlist entry, so widening to subdomains can't
+ *    downgrade https→http or reach a non-default port.
+ *  * An allowlisted bare IP never gains subdomains (an IP has no subdomains; treating it as a
+ *    suffix would let `1.2.3.4.attacker.com` match `2.3.4`-style entries).
+ *  * This only widens *which public hostnames* are reachable. Every candidate still passes the
+ *    private/reserved-IP and DNS-rebinding checks in checkResolvedTarget, so a subdomain that
+ *    resolves to 127.0.0.1 or 169.254.169.254 is still rejected.
+ *
+ * It does NOT climb upward: an allowlisted `https://cdn.example.com` does not permit
+ * `https://example.com`, since the run was authorized for the narrower host.
+ */
+export function isOriginAllowed(url: URL, options: NavigationCheckOptions): boolean {
+  const origin = `${url.protocol}//${url.host}`;
+  if (options.allowedOrigins.includes(origin)) return true;
+  if (!options.allowSubdomains) return false;
+
+  const candidateHost = url.hostname.replace(/^\[|\]$/g, '');
+  // A bare-IP candidate can only ever match exactly, handled above.
+  if (isIP(candidateHost)) return false;
+
+  return options.allowedOrigins.some((allowed) => {
+    const allowedUrl = parseUrlSafely(allowed);
+    if (!allowedUrl) return false;
+    if (allowedUrl.protocol !== url.protocol) return false;
+    if (allowedUrl.port !== url.port) return false;
+    const allowedHost = allowedUrl.hostname.replace(/^\[|\]$/g, '');
+    // An allowlisted IP has no subdomains.
+    if (isIP(allowedHost)) return false;
+    // Strict subdomain on a dot boundary — never a bare suffix match.
+    return candidateHost.endsWith(`.${allowedHost}`);
+  });
+}
 
 /**
  * Returns true if `ip` (a bare IPv4 or IPv6 address string) is loopback, private/link-local, or
@@ -125,9 +179,8 @@ export function checkUrlStructure(
   if (!DEFAULT_PORTS.has(port) && !allowedPorts.includes(port)) {
     return { allowed: false, reason: `disallowed_port:${port}` };
   }
-  const origin = `${url.protocol}//${url.host}`;
-  if (!options.allowedOrigins.includes(origin)) {
-    return { allowed: false, reason: `origin_not_allowlisted:${origin}` };
+  if (!isOriginAllowed(url, options)) {
+    return { allowed: false, reason: `origin_not_allowlisted:${url.protocol}//${url.host}` };
   }
   return { allowed: true };
 }
