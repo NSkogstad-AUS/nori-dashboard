@@ -1,4 +1,9 @@
+'use client';
+
 // Ports the `.person` button markup from prototype/app.js's `personaShelf()`.
+
+import { useRef } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 
 export interface PersonaPillProps {
   id: string;
@@ -16,6 +21,8 @@ export interface PersonaPillProps {
    * active at a time, but re-clicking clears it). 'single' (Live): clicking always selects,
    * never deselects — the prototype's click handler special-cases `state.mode==='live'` with
    * `state.person = state.mode==='live' ? person : (state.person===person ? null : person)`.
+   * Clicking either the photo or the "Select"/"Watch" action triggers the same select-and-expand
+   * behavior — there is only one persona selected/expanded at a time.
    */
   selectionMode: 'toggle' | 'single';
   onSelect: (id: string) => void;
@@ -44,6 +51,30 @@ export function PersonaPill({
       : selected
         ? 'Selected'
         : 'Select';
+
+  // Subtle parallax: nudges the photo a couple of pixels toward the pointer within its frame.
+  // Kept as a direct style write (not React state) so hovering doesn't trigger re-renders, and
+  // the CSS transition on .person-photo (gated behind prefers-reduced-motion, see motion.css)
+  // smooths it into an "almost unnoticeable" drift rather than a snap. Skipped entirely when the
+  // user prefers reduced motion, matching every other motion effect in this app.
+  const frameRef = useRef<HTMLSpanElement>(null);
+  const handlePointerMove = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const bounds = frame.getBoundingClientRect();
+    const offsetX = (event.clientX - bounds.left) / bounds.width - 0.5;
+    const offsetY = (event.clientY - bounds.top) / bounds.height - 0.5;
+    frame.style.setProperty('--parallax-x', `${(offsetX * -6).toFixed(2)}px`);
+    frame.style.setProperty('--parallax-y', `${(offsetY * -6).toFixed(2)}px`);
+  };
+  const resetParallax = () => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    frame.style.setProperty('--parallax-x', '0px');
+    frame.style.setProperty('--parallax-y', '0px');
+  };
+
   return (
     <article
       className={`person ${colorClass}${selected ? ' selected' : ''}${compact ? ' person-compact' : ''}`}
@@ -52,7 +83,12 @@ export function PersonaPill({
     >
       <div className="person-portrait-reveal" aria-hidden={compact}>
         <div className="person-portrait-clip">
-          <span className="person-photo-frame">
+          <span
+            className="person-photo-frame"
+            ref={frameRef}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={resetParallax}
+          >
             <button
               type="button"
               className="person-portrait-select"

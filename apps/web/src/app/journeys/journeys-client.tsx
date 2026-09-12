@@ -4,19 +4,16 @@
 // `changeFrame()`, `showFinding()`, and the personas-library dialog action. See
 // plan/PHASE_2_PLAN.md section 6.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   JourneyViewSwitch,
   PersonaShelf,
-  JourneyStage,
-  JourneyStep,
   BrowserViewport,
   PlaybackControls,
   CaptureStrip,
   FindingDrawer,
   PersonaLibraryDialog,
   FixtureModeBadge,
-  Dialog,
   type PersonaShelfPerson,
 } from '@nori/ui';
 import { JourneyViewProvider, useJourneyView } from '../../context/journey-view-context';
@@ -28,8 +25,6 @@ import {
   personaForFinding,
   sessionForPersonaInRun,
   stageIndexForFinding,
-  stepAtStage,
-  isErrorOutcome,
 } from '../../lib/journey-derivations';
 import type { Finding } from '@nori/contracts';
 
@@ -69,10 +64,6 @@ function JourneysContent() {
   const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
     () => new Set(personas.map((persona) => persona.id)),
   );
-  const [plainStepOpen, setPlainStepOpen] = useState<{
-    personId: string;
-    stageIndex: number;
-  } | null>(null);
 
   const toggleAttached = (id: string) => {
     const next = new Set(attachedPersonaIds);
@@ -95,10 +86,6 @@ function JourneysContent() {
   const openLibrary = () => {
     setPlaying(false);
     setLibraryOpen(true);
-  };
-  const openPlainStep = (personId: string, stageIndex: number) => {
-    setPlaying(false);
-    setPlainStepOpen({ personId, stageIndex });
   };
 
   return (
@@ -135,11 +122,7 @@ function JourneysContent() {
       </div>
       <div className="journey-experience">
         <JourneyViewSwitch mode={mode} onChange={setMode} />
-        {mode === 'live' ? (
-          <LiveView onOpenFinding={openFinding} />
-        ) : (
-          <OverviewAtlas onOpenFinding={openFinding} onOpenStep={openPlainStep} />
-        )}
+        {mode === 'live' ? <LiveView onOpenFinding={openFinding} /> : <OverviewAtlas />}
       </div>
       <FindingDrawer
         open={findingOpen !== null}
@@ -168,16 +151,6 @@ function JourneysContent() {
           attached: attachedPersonaIds.has(persona.id),
         }))}
         onToggleAttached={toggleAttached}
-      />
-      {/* Ports the prototype's plain step detail dialog (a step with no finding) — purely
-          informational text with no form/interactive content, same as the prototype's version,
-          but still built on the shared Dialog for consistent focus-restore/Escape/backdrop
-          behavior with the other two dialogs. */}
-      <PlainStepNotice
-        open={plainStepOpen !== null}
-        personId={plainStepOpen?.personId ?? null}
-        stageIndex={plainStepOpen?.stageIndex ?? 0}
-        onClose={() => setPlainStepOpen(null)}
       />
     </>
   );
@@ -231,60 +204,60 @@ function PersonaShelfSection({
   );
 }
 
-interface OverviewAtlasProps {
-  onOpenFinding: (finding: Finding) => void;
-  onOpenStep: (personId: string, stageIndex: number) => void;
+function OverviewFlowArrow() {
+  return (
+    <span className="overview-flow-arrow" aria-hidden="true">
+      <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+        <path
+          d="M1 8h24m0 0-7-7m7 7-7 7"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  );
 }
 
-function OverviewAtlas({ onOpenFinding, onOpenStep }: OverviewAtlasProps) {
-  const { selectedPersonId, onlyIssues } = useJourneyView();
-  const visiblePersonas = selectedPersonId
-    ? personas.filter((persona) => persona.id === selectedPersonId)
-    : personas;
+function OverviewAtlas() {
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const flowRef = useRef<HTMLDivElement>(null);
+
+  const toggleCard = (index: number) => {
+    // Measure each card's current (resting) width before the class change kicks in, so the
+    // two non-expanded cards get pinned to exactly their present size via
+    // --overview-card-rest-width instead of an approximate 33% fallback — keeps them visually
+    // unchanged while only the clicked card grows.
+    const flow = flowRef.current;
+    if (flow) {
+      const cards = flow.querySelectorAll<HTMLElement>('.overview-flow-card');
+      cards.forEach((card) => {
+        card.style.setProperty('--overview-card-rest-width', `${card.offsetWidth}px`);
+      });
+    }
+    setExpandedIndex((previous) => (previous === index ? null : index));
+  };
 
   return (
-    <>
-      <section className="map-panel">
-        <div className="panel-head">
-          <div>
-            <span className="subtle">Sample run</span>
-            <h2>{CANONICAL_RUN.task}</h2>
-          </div>
-          <button type="button" className="circle" aria-label="Run details">
-            ↗
-          </button>
-        </div>
-        <div className="scroll-area">
-          <div className="stage-map">
-            {STAGE_NAMES.map((stageName, stageIndex) => (
-              <JourneyStage key={stageName} index={stageIndex} name={stageName}>
-                {visiblePersonas.map((persona) => {
-                  const finding = findingAt(CANONICAL_RUN.id, persona.id, stageIndex);
-                  const session = sessionForPersonaInRun(CANONICAL_RUN.id, persona.id);
-                  const step = session ? stepAtStage(session.id, stageIndex) : undefined;
-                  const actionText = observationAt(CANONICAL_RUN.id, persona.id, stageIndex) ?? '';
-                  return (
-                    <JourneyStep
-                      key={persona.id}
-                      personName={persona.name}
-                      personEmoji={persona.emoji}
-                      actionText={actionText}
-                      findingSeverity={finding?.severity}
-                      isErrorOutcome={step ? isErrorOutcome(step) : false}
-                      onlyIssues={onlyIssues}
-                      onOpen={() => {
-                        if (finding) onOpenFinding(finding);
-                        else onOpenStep(persona.id, stageIndex);
-                      }}
-                    />
-                  );
-                })}
-              </JourneyStage>
-            ))}
-          </div>
-        </div>
-      </section>
-    </>
+    <section className="map-panel">
+      <div
+        ref={flowRef}
+        className={`overview-flow${expandedIndex !== null ? ' overview-flow-expanded' : ''}`}
+      >
+        {[0, 1, 2].map((index) => (
+          <Fragment key={index}>
+            <button
+              type="button"
+              className={`overview-flow-card${expandedIndex === index ? ' expanded' : ''}`}
+              aria-pressed={expandedIndex === index}
+              onClick={() => toggleCard(index)}
+            />
+            {index < 2 && <OverviewFlowArrow />}
+          </Fragment>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -463,37 +436,5 @@ function LiveView({ onOpenFinding }: LiveViewProps) {
         onSelectFrame={changeFrame}
       />
     </section>
-  );
-}
-
-function PlainStepNotice({
-  open,
-  personId,
-  stageIndex,
-  onClose,
-}: {
-  open: boolean;
-  personId: string | null;
-  stageIndex: number;
-  onClose: () => void;
-}) {
-  const persona = personId ? personas.find((candidate) => candidate.id === personId) : undefined;
-  const actionText = personId ? (observationAt(CANONICAL_RUN.id, personId, stageIndex) ?? '') : '';
-  return (
-    <Dialog open={open} onClose={onClose} labelledBy="plain-step-title">
-      <button className="close circle" data-close aria-label="Close dialog" onClick={onClose}>
-        ×
-      </button>
-      <span className="subtle">Sample journey / {STAGE_NAMES[stageIndex]}</span>
-      <h2 id="plain-step-title">{actionText}</h2>
-      <p>
-        {persona ? (
-          <>
-            {persona.emoji} {persona.name} continued to the next step without a flagged issue in
-            this fictional path.
-          </>
-        ) : null}
-      </p>
-    </Dialog>
   );
 }

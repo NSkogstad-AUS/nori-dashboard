@@ -553,6 +553,11 @@ main {
   background: none;
 }
 
+.person-photo-frame {
+  --parallax-x: 0px;
+  --parallax-y: 0px;
+}
+
 .person-photo {
   position: absolute;
   bottom: 0;
@@ -566,6 +571,9 @@ main {
   height: 100%;
   object-fit: cover;
   object-position: left center;
+  /* Very small pointer-driven drift, set by PersonaPill.tsx's pointermove handler — layered on
+     top of the `left` positioning above via `translate`, which composites independently. */
+  translate: var(--parallax-x) var(--parallax-y);
 }
 
 .emoji {
@@ -810,6 +818,69 @@ main {
   background: #fff;
   padding: var(--space-lg);
   border: 1px solid var(--line);
+}
+
+.overview-flow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-md);
+}
+
+.overview-flow-card {
+  flex: 1 1 0%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Clicking a card grows it both horizontally and vertically while its siblings stay exactly
+   their original width/height. The two non-expanded cards switch to a fixed flex-basis equal to
+   their own resting width (measured in px via JS, since that resting width depends on the
+   panel's actual size) so they neither grow nor shrink; the expanded card absorbs all the extra
+   row width via flex-grow, plus a taller min-height override for the vertical growth. Same
+   easing/duration as the persona shelf's expand transition (560ms,
+   cubic-bezier(0.22, 0.8, 0.3, 1)), for a consistent feel across both interactions. */
+.overview-flow-expanded .overview-flow-card:not(.expanded) {
+  flex: 0 0 var(--overview-card-rest-width, 33%);
+}
+
+.overview-flow-expanded .overview-flow-card.expanded {
+  flex: 1 1 auto;
+  min-height: 340px;
+}
+
+.overview-flow-arrow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .overview-flow-card {
+    transition:
+      flex-grow 560ms cubic-bezier(0.22, 0.8, 0.3, 1),
+      flex-basis 560ms cubic-bezier(0.22, 0.8, 0.3, 1),
+      min-height 560ms cubic-bezier(0.22, 0.8, 0.3, 1);
+  }
+}
+
+@media (max-width: 800px) {
+  .overview-flow {
+    flex-direction: column;
+  }
+
+  .overview-flow-arrow {
+    transform: rotate(90deg);
+  }
+
+  .overview-flow-card {
+    width: 100%;
+  }
 }
 
 .panel-head {
@@ -2872,10 +2943,6 @@ form > .pill {
 
   .people-focused .person:not(.selected) .person-details {
     display: none;
-  }
-
-  .people-focused .person:not(.selected) .person-action {
-    padding-inline: 10px;
   }
 }
 
