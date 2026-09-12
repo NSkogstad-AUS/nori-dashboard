@@ -21,12 +21,47 @@ export interface EnsureSystemPersonaOptions {
   name?: string;
 }
 
+export async function ensureAlexPersona(): Promise<Persona> {
+  const sql = getDb();
+  const device = {
+    viewportWidth: 1280,
+    viewportHeight: 800,
+    userAgent:
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+      '(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    reducedMotion: false,
+  };
+  const [row] = await sql<Record<string, unknown>[]>`
+    insert into personas (name, version, emoji, goal, behavior, device, limitations)
+    values (
+      'Alex',
+      1,
+      '🧑‍🦱',
+      'Complete the assigned task as a first-time visitor.',
+      'Explores a website with no prior context, takes visible content at face value, and uses
+       the clearest apparent path before committing to the next step.',
+      ${sql.json(device)},
+      ${sql.json(['Has no prior knowledge of the website or its navigation.'])}
+    )
+    on conflict (name, version) do update set
+      goal = excluded.goal,
+      behavior = excluded.behavior,
+      device = excluded.device,
+      limitations = excluded.limitations
+    returning id, name, version, emoji, goal, behavior, device, limitations, created_at
+  `;
+  if (!row) throw new Error('ensureAlexPersona: insert returned no row');
+  return rowToCamelCase<Persona>(row);
+}
+
 /**
  * Ensures a single placeholder persona exists for Phase 4's fixed (non-model-driven) fixture
  * job, upserting on (name, version) — the table's existing unique constraint. Not meant for real
  * persona authoring; Phase 5 replaces this with a real persona library.
  */
-export async function ensureSystemPersona(options: EnsureSystemPersonaOptions = {}): Promise<Persona> {
+export async function ensureSystemPersona(
+  options: EnsureSystemPersonaOptions = {},
+): Promise<Persona> {
   const sql = getDb();
   const name = options.name ?? 'Phase 4 Fixture Runner';
   const device = {

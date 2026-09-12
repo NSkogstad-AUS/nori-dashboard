@@ -46,6 +46,17 @@ npm run seed-fixture-run --workspace=apps/worker
 WORKER_FIXTURE_MODE=true npm run dev:worker
 ```
 
+Phase 5 can run Alex's Claude-powered loop end to end after `ANTHROPIC_API_KEY` is filled in within
+the root `.env`. Keep the fixture site running, then execute:
+
+```bash
+npm run run-agent-fixture --workspace=apps/worker
+```
+
+The command seeds and claims one job, runs the bounded persona loop, and prints the persisted task
+outcome, evidence step IDs, model and prompt versions, token usage, and cost. It remains limited to
+the owned local fixture.
+
 ## Health checks
 
 - Web: http://localhost:3000/api/health → `{ "status": "ok" }`

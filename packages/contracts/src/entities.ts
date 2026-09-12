@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RUN_STATES, SESSION_STATES, CANCEL_REQUEST_STATES } from './state-machines';
+import { sessionFailureKindSchema } from './agent';
 
 // Data model from plan/IMPLEMENTATION_PLAN.md section 5.
 // Every tenant-owned record carries a workspaceId; server-side authorization
@@ -22,11 +23,7 @@ export const membershipSchema = z.object({
 });
 export type Membership = z.infer<typeof membershipSchema>;
 
-export const websiteAuthorizationStatusSchema = z.enum([
-  'unverified',
-  'owner_verified',
-  'fixture',
-]);
+export const websiteAuthorizationStatusSchema = z.enum(['unverified', 'owner_verified', 'fixture']);
 
 export const websiteSchema = z.object({
   id: z.string().uuid(),
@@ -96,6 +93,8 @@ export const personaSessionSchema = z.object({
   attempt: z.number().int().nonnegative().default(0),
   device: personaDeviceSettingsSchema,
   state: sessionStateSchema,
+  failureKind: sessionFailureKindSchema.nullable(),
+  failureMessage: z.string().max(2000).nullable(),
   heartbeatAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

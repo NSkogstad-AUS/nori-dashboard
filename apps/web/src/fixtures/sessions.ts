@@ -31,6 +31,8 @@ export const sessions: PersonaSession[] = RUN_KEYS.flatMap((runKey) =>
       attempt: 0,
       device: persona.device,
       state: 'completed',
+      failureKind: null,
+      failureMessage: null,
       heartbeatAt: null,
       createdAt: FIXTURE_TIMESTAMP,
       updatedAt: FIXTURE_TIMESTAMP,

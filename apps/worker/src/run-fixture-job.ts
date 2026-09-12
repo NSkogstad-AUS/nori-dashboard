@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import {
   ensureWorkspace,
   createWebsite,
   listWebsitesForWorkspace,
   ensureSystemPersona,
+  ensureAlexPersona,
   createRun,
   createPersonaSession,
   enqueueJob,
+  type Job,
 } from '@nori/db';
 
 // CLI trigger for Phase 4's fixture job — see plan/PHASE_4_PLAN.md section 4.5. No run-creation
@@ -33,14 +36,14 @@ function resolveLanAddress(): string {
   );
 }
 
-async function main() {
+export async function seedFixtureJob(options: { agentMode?: boolean } = {}): Promise<Job> {
   const fixtureSitePort = Number(process.env.FIXTURE_SITE_PORT ?? 8082);
   const host = resolveLanAddress();
   const fixtureOrigin = `http://${host}:${fixtureSitePort}`;
   console.log(`[seed] fixture site origin: ${fixtureOrigin}`);
 
   const workspace = await ensureWorkspace('phase4-fixture-runner', 'Phase 4 Fixture Runner');
-  const persona = await ensureSystemPersona();
+  const persona = options.agentMode ? await ensureAlexPersona() : await ensureSystemPersona();
 
   const website = await createWebsite(workspace.id, {
     displayName: 'Nori Fixture Site',
@@ -79,11 +82,14 @@ async function main() {
   console.log(
     `[seed] enqueued job ${job.id} — run it with WORKER_FIXTURE_MODE=true npm run dev:worker.`,
   );
+  return job;
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error: unknown) => {
-    console.error('[seed] failed', error);
-    process.exit(1);
-  });
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  seedFixtureJob({ agentMode: process.env.WORKER_AGENT_MODE === 'true' })
+    .then(() => process.exit(0))
+    .catch((error: unknown) => {
+      console.error('[seed] failed', error);
+      process.exit(1);
+    });
+}

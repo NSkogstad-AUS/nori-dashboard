@@ -7,3 +7,4 @@ export * from './queries/persona-sessions';
 export * from './queries/steps';
 export * from './queries/artifacts';
 export * from './queries/jobs';
+export * from './queries/persona-reports';

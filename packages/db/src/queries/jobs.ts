@@ -71,6 +71,27 @@ export async function claimNextJob(workerId: string, leaseSeconds = 60): Promise
   return row ? rowToCamelCase<Job>(row) : null;
 }
 
+export async function claimJobById(
+  jobId: string,
+  workerId: string,
+  leaseSeconds = 60,
+): Promise<Job | null> {
+  const sql = getDb();
+  const [row] = await sql<Record<string, unknown>[]>`
+    update jobs
+    set status = 'leased',
+        attempt = attempt + 1,
+        leased_by = ${workerId},
+        leased_until = now() + (${leaseSeconds} || ' seconds')::interval,
+        last_heartbeat_at = now(),
+        updated_at = now()
+    where id = ${jobId} and status = 'pending' and available_at <= now()
+    returning id, run_id, session_id, status, attempt, max_attempts, available_at, leased_by,
+      leased_until, last_heartbeat_at, last_error, created_at, updated_at
+  `;
+  return row ? rowToCamelCase<Job>(row) : null;
+}
+
 export async function heartbeatJob(jobId: string, leaseSeconds = 60): Promise<void> {
   const sql = getDb();
   await sql`

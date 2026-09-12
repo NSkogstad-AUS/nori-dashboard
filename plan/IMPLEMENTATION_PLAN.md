@@ -234,18 +234,21 @@ checklist; the items below are the summary view.
 
 ### Phase 5 — One real persona agent, end to end
 
-- [ ] Define a versioned persona schema focused on behavior and goals, not stereotypes.
-- [ ] Construct an observation from the current page, actionable elements, current URL, and optional screenshot.
-- [ ] Define a bounded action schema: navigate, click, scroll, type into allowed fields, wait, capture, finish.
-- [ ] Validate each model action against current browser state and server-side policy before executing it.
-- [ ] Keep website content untrusted: page text cannot change system policy, request credentials, override allowed domains, or authorize side effects.
-- [ ] Separate action choice from deterministic execution and observation storage.
-- [ ] Limit steps, elapsed time, model tokens, and cost; detect loops and repeated failed actions.
-- [ ] Store persona/model/prompt versions and reproducibility metadata without storing private chain-of-thought.
-- [ ] Distinguish task success, task failure, model failure, and infrastructure failure.
-- [ ] Connect one submitted run to one persisted persona session and one real report.
+Detailed working plan: [PHASE_5_PLAN.md](./PHASE_5_PLAN.md).
 
-**Gate:** Nori can explain one actual fixture journey using recorded steps and screenshots. It does not fabricate evidence or continue indefinitely.
+- [x] Define a versioned persona schema focused on behavior and goals, not stereotypes.
+- [x] Construct an observation from the current page, actionable elements, current URL, and optional screenshot.
+- [x] Define a bounded action schema: navigate, click, scroll, type into allowed fields, wait, capture, finish.
+- [x] Validate each model action against current browser state and server-side policy before executing it.
+- [x] Keep website content untrusted: page text cannot change system policy, request credentials, override allowed domains, or authorize side effects.
+- [x] Separate action choice from deterministic execution and observation storage.
+- [x] Limit steps, elapsed time, model tokens, and cost; detect loops and repeated failed actions.
+- [x] Store persona/model/prompt versions and reproducibility metadata without storing private chain-of-thought.
+- [x] Distinguish task success, task failure, model failure, and infrastructure failure.
+- [x] Connect one submitted run to one persisted persona session and one real report.
+
+**Gate:** Automated real-browser coverage passes. One live Anthropic fixture run remains pending a
+configured `ANTHROPIC_API_KEY`; see the Phase 5 plan.
 
 ### Phase 6 — Durable jobs and multiple personas
 

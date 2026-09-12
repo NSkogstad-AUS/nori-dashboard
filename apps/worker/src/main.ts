@@ -5,24 +5,38 @@ import {
   claimNextJob,
   cancelJob,
   completeJob,
+  createPersonaReport,
   failJob,
+  getPersonaById,
   getRunCancellationState,
   getRunByIdUnscoped,
   getPersonaSessionById,
   heartbeatJob,
+  recordSessionFailure,
   touchHeartbeat,
   updateRunCancellationState,
   updateRunState,
   updateSessionState,
 } from '@nori/db';
-import { runFixedSessionScript, SessionCancelledError } from './run-session.js';
+import {
+  AgentLoopError,
+  AnthropicActionModel,
+  PersonaModelError,
+  type PersonaActionModel,
+} from '@nori/agent';
+import {
+  runFixedSessionScript,
+  runPersonaAgentSession,
+  SessionCancelledError,
+} from './run-session.js';
 
 // Phase 4 job-claim loop (see plan/PHASE_4_PLAN.md section 4.4) — replaces the Phase 1 health-
 // check skeleton. Polls the jobs table (packages/db/src/migrations/002_queue.sql) for leasable
 // persona-session jobs, claims one via SELECT ... FOR UPDATE SKIP LOCKED
 // (packages/db/src/queries/jobs.ts), runs a fixed deterministic browser script against it
-// (run-session.ts), and records the outcome. Model-driven action selection is Phase 5's job —
-// this loop only ever runs the one hand-written script, never anything a model chose.
+// (run-session.ts), and records the outcome. Phase 5 optionally supplies the bounded Anthropic
+// action model when WORKER_AGENT_MODE is explicit; the fixed Phase 4 script remains available for
+// deterministic regression tests.
 
 const PORT = Number(process.env.PORT ?? 8081);
 const WORKER_ID = process.env.WORKER_ID ?? `worker-${randomUUID().slice(0, 8)}`;
@@ -33,7 +47,7 @@ let currentJobPromise: Promise<void> | null = null;
 
 export async function processJob(
   job: NonNullable<Awaited<ReturnType<typeof claimNextJob>>>,
-  options: { allowPrivateTargets?: boolean } = {},
+  options: { allowPrivateTargets?: boolean; model?: PersonaActionModel } = {},
 ) {
   if (!job) return;
   console.log(`[worker] claimed job ${job.id} (session ${job.sessionId})`);
@@ -45,6 +59,15 @@ export async function processJob(
       job.id,
       `run or session not found (runId=${job.runId}, sessionId=${job.sessionId})`,
     );
+    return;
+  }
+  const persona = options.model ? await getPersonaById(session.personaId) : null;
+  if (options.model && !persona) {
+    const message = `persona not found (personaId=${session.personaId})`;
+    await recordSessionFailure(session.id, 'infrastructure_failure', message);
+    await updateSessionState(session.id, session.state, 'failed');
+    await updateRunState(run.id, run.state, 'failed');
+    await failJob(job.id, message);
     return;
   }
 
@@ -63,21 +86,15 @@ export async function processJob(
     await updateSessionState(session.id, session.state, 'starting');
     await updateSessionState(session.id, 'starting', 'exploring');
 
-    await runFixedSessionScript({
-      run,
-      session,
-      navigationOptions: {
-        allowedOrigins: run.allowedOrigins,
-        // The fixture site runs on a non-default port and (for now) a private LAN address on
-        // the developer's machine — see plan/PHASE_4_PLAN.md's "fixture reachability" note and
-        // packages/agent/src/safe-navigation.ts's allowPrivateTargets doc comment. Every real
-        // user-submitted URL Phase 5 ever requests must never set this.
-        allowedPorts: run.allowedOrigins.flatMap((origin) => {
-          const port = new URL(origin).port;
-          return port ? [Number(port)] : [];
-        }),
-        allowPrivateTargets: fixtureMode,
-      },
+    const navigationOptions = {
+      allowedOrigins: run.allowedOrigins,
+      allowedPorts: run.allowedOrigins.flatMap((origin) => {
+        const port = new URL(origin).port;
+        return port ? [Number(port)] : [];
+      }),
+      allowPrivateTargets: fixtureMode,
+    };
+    const lifecycleOptions = {
       monitorIntervalMs: 250,
       onHeartbeat: async () => {
         if (Date.now() - lastHeartbeatAt < 5000) return;
@@ -86,7 +103,38 @@ export async function processJob(
       },
       isCancellationRequested: async () =>
         (await getRunCancellationState(run.id)) === 'cancel_requested',
-    });
+    };
+
+    if (options.model && persona) {
+      const result = await runPersonaAgentSession({
+        run,
+        session,
+        persona,
+        model: options.model,
+        navigationOptions,
+        ...lifecycleOptions,
+      });
+      await createPersonaReport({
+        runId: run.id,
+        sessionId: session.id,
+        outcome: result.outcome,
+        summary: result.summary,
+        evidenceStepIds: result.evidenceStepIds,
+        modelProvider: options.model.provider,
+        modelId: options.model.modelId,
+        promptVersion: options.model.promptVersion,
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        costUsd: result.usage.costUsd,
+      });
+    } else {
+      await runFixedSessionScript({
+        run,
+        session,
+        navigationOptions,
+        ...lifecycleOptions,
+      });
+    }
 
     await updateSessionState(session.id, 'exploring', 'analysing');
     await updateSessionState(session.id, 'analysing', 'completed');
@@ -112,6 +160,13 @@ export async function processJob(
       await cancelJob(job.id, message);
       return;
     }
+    await recordSessionFailure(
+      session.id,
+      error instanceof PersonaModelError || error instanceof AgentLoopError
+        ? 'model_failure'
+        : 'infrastructure_failure',
+      message,
+    );
     try {
       const latestSession = await getPersonaSessionById(session.id);
       if (
@@ -137,7 +192,9 @@ async function pollLoop() {
     try {
       const job = await claimNextJob(WORKER_ID);
       if (job) {
-        currentJobPromise = processJob(job);
+        const model =
+          process.env.WORKER_AGENT_MODE === 'true' ? new AnthropicActionModel() : undefined;
+        currentJobPromise = processJob(job, { model });
         await currentJobPromise;
         currentJobPromise = null;
       } else {

@@ -17,11 +17,23 @@ import {
   checkUrlStructure,
   checkWebSocketTarget,
   isPrivateOrReservedIp,
+  runAgentLoop,
   resolveTargetAddresses,
+  type AgentLoopResult,
   type NavigationCheckOptions,
+  type PersonaActionModel,
 } from '@nori/agent';
-import { appendStep, createArtifact, linkArtifactToStep } from '@nori/db';
-import type { PersonaSession, Run, StepAction, StepOutcome } from '@nori/contracts';
+import { addRunCost, appendStep, createArtifact, linkArtifactToStep } from '@nori/db';
+import type {
+  BrowserAction,
+  PageObservation,
+  Persona,
+  PersonaSession,
+  Run,
+  Step,
+  StepAction,
+  StepOutcome,
+} from '@nori/contracts';
 
 // This remains deliberately deterministic. Phase 5 can choose actions only after this executor
 // and its network boundary have proved safe without a model in the loop.
@@ -53,6 +65,11 @@ export interface RunSessionOptions {
   onHeartbeat?: () => Promise<void>;
   isCancellationRequested?: () => Promise<boolean>;
   monitorIntervalMs?: number;
+}
+
+export interface RunPersonaSessionOptions extends RunSessionOptions {
+  persona: Persona;
+  model: PersonaActionModel;
 }
 
 interface SessionBudget {
@@ -104,8 +121,26 @@ async function recordStep(
   return appendStep({ sessionId, action, outcome, urlBefore, urlAfter, observation });
 }
 
-async function captureScreenshot(sessionId: string, page: Page): Promise<void> {
+async function attachScreenshot(sessionId: string, stepId: string, page: Page): Promise<Buffer> {
   const buffer = await page.screenshot({ type: 'png' });
+  const dir = path.join(ARTIFACTS_ROOT, sessionId);
+  await mkdir(dir, { recursive: true });
+  const fileName = `${stepId}.png`;
+  await writeFile(path.join(dir, fileName), buffer);
+  const viewport = page.viewportSize();
+  const artifact = await createArtifact({
+    sessionId,
+    stepId,
+    storageKey: path.join(sessionId, fileName),
+    contentType: 'image/png',
+    width: viewport?.width ?? 0,
+    height: viewport?.height ?? 0,
+  });
+  await linkArtifactToStep(stepId, artifact.id);
+  return buffer;
+}
+
+async function captureScreenshot(sessionId: string, page: Page): Promise<void> {
   const step = await recordStep(
     sessionId,
     'capture',
@@ -114,20 +149,7 @@ async function captureScreenshot(sessionId: string, page: Page): Promise<void> {
     page.url(),
     'viewport screenshot',
   );
-  const dir = path.join(ARTIFACTS_ROOT, sessionId);
-  await mkdir(dir, { recursive: true });
-  const fileName = `${step.id}.png`;
-  await writeFile(path.join(dir, fileName), buffer);
-  const viewport = page.viewportSize();
-  const artifact = await createArtifact({
-    sessionId,
-    stepId: step.id,
-    storageKey: path.join(sessionId, fileName),
-    contentType: 'image/png',
-    width: viewport?.width ?? 0,
-    height: viewport?.height ?? 0,
-  });
-  await linkArtifactToStep(step.id, artifact.id);
+  await attachScreenshot(sessionId, step.id, page);
 }
 
 interface BlockedRequest {
@@ -365,6 +387,226 @@ export async function runFixedSessionScript(options: RunSessionOptions): Promise
       // Closing a context waits for an in-flight route handler. Terminate the owning browser
       // first so cancellation and hard limits also abort requests whose servers stopped
       // responding. browser.close() closes every context and page it owns.
+      await browser.close().catch(() => undefined);
+      activeBrowserCount -= 1;
+    } else {
+      await context?.close().catch(() => undefined);
+    }
+  }
+}
+
+async function observePage(page: Page): Promise<PageObservation & { screenshotBase64: string }> {
+  const locator = page.locator(
+    'a[href], button, input:not([type="hidden"]), textarea, select, [role="button"], [role="link"], [role="textbox"]',
+  );
+  const count = Math.min(await locator.count(), 100);
+  const elements: PageObservation['elements'] = [];
+  for (let index = 0; index < count; index += 1) {
+    const element = locator.nth(index);
+    if (!(await element.isVisible().catch(() => false))) continue;
+    const id = `nori-${index}`;
+    const [tag, role, type, ariaLabel, placeholder, title, text, disabled] = await Promise.all([
+      element.evaluate<string, string, HTMLElement>((node, elementId) => {
+        node.setAttribute('data-nori-id', elementId);
+        return node.tagName.toLowerCase();
+      }, id),
+      element.getAttribute('role'),
+      element.getAttribute('type'),
+      element.getAttribute('aria-label'),
+      element.getAttribute('placeholder'),
+      element.getAttribute('title'),
+      element.innerText().catch(() => ''),
+      element.isDisabled().catch(() => false),
+    ]);
+    elements.push({
+      id,
+      tag,
+      role,
+      type,
+      name: (ariaLabel || text || placeholder || title || type || tag).trim().slice(0, 300),
+      disabled,
+    });
+  }
+  const screenshot = await page.screenshot({ type: 'png' });
+  return {
+    url: page.url(),
+    title: (await page.title()).slice(0, 500),
+    visibleText: (await page.locator('body').innerText()).slice(0, 12_000),
+    elements,
+    screenshotBase64: screenshot.toString('base64'),
+  };
+}
+
+async function executeAgentAction(
+  action: BrowserAction,
+  decisionObservation: string,
+  page: Page,
+  session: PersonaSession,
+  budget: SessionBudget,
+  getBlockedRequest: () => BlockedRequest | null,
+): Promise<{ stepId: string; result: string }> {
+  consumeAction(budget);
+  const urlBefore = page.url();
+  let step: Step | null = null;
+  try {
+    switch (action.kind) {
+      case 'navigate':
+        await page.goto(action.url, { waitUntil: 'load', timeout: 0 });
+        break;
+      case 'click':
+        await page.locator(`[data-nori-id="${action.elementId}"]`).click({ timeout: 5000 });
+        break;
+      case 'scroll':
+        await page.mouse.wheel(0, action.deltaY);
+        break;
+      case 'type':
+        await page.locator(`[data-nori-id="${action.elementId}"]`).fill(action.text);
+        break;
+      case 'wait':
+        await page.waitForTimeout(action.milliseconds);
+        break;
+      case 'capture':
+      case 'finish':
+        break;
+    }
+
+    const blocked = getBlockedRequest();
+    if (blocked) throw new UnsafeTargetError(`unsafe_target:${blocked.reason}`);
+    const observation =
+      action.kind === 'finish'
+        ? `${decisionObservation} ${action.summary}`.slice(0, 2000)
+        : decisionObservation;
+    step = await recordStep(session.id, action.kind, 'success', urlBefore, page.url(), observation);
+    if (action.kind !== 'finish' && action.kind !== 'wait') {
+      await attachScreenshot(session.id, step.id, page);
+    }
+    return { stepId: step.id, result: `success at ${page.url()}` };
+  } catch (error) {
+    if (!step) {
+      await recordStep(
+        session.id,
+        action.kind,
+        error instanceof UnsafeTargetError ? 'blocked' : 'error',
+        urlBefore,
+        page.url(),
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    throw error;
+  }
+}
+
+async function executePersonaAgent(
+  page: Page,
+  options: RunPersonaSessionOptions,
+  budget: SessionBudget,
+  getBlockedRequest: () => BlockedRequest | null,
+  signal: AbortSignal,
+): Promise<AgentLoopResult> {
+  consumeAction(budget);
+  const preCheck = await checkNavigationTarget(options.run.url, options.navigationOptions);
+  if (!preCheck.allowed) {
+    const reason = `unsafe_target:${preCheck.reason ?? 'blocked'}`;
+    await recordStep(options.session.id, 'navigate', 'blocked', null, options.run.url, reason);
+    throw new UnsafeTargetError(reason);
+  }
+  try {
+    await page.goto(options.run.url, { waitUntil: 'load', timeout: 0 });
+  } catch (error) {
+    const blockedTarget = getBlockedRequest();
+    if (blockedTarget) {
+      const reason = `unsafe_target:${blockedTarget.reason}`;
+      await recordStep(options.session.id, 'navigate', 'blocked', null, blockedTarget.url, reason);
+      throw new UnsafeTargetError(reason, { cause: error });
+    }
+    throw error;
+  }
+  const blocked = getBlockedRequest();
+  if (blocked) {
+    const reason = `unsafe_target:${blocked.reason}`;
+    await recordStep(options.session.id, 'navigate', 'blocked', null, blocked.url, reason);
+    throw new UnsafeTargetError(reason);
+  }
+  const initialStep = await recordStep(
+    options.session.id,
+    'navigate',
+    'success',
+    null,
+    page.url(),
+    'Opened the run start URL.',
+  );
+  await attachScreenshot(options.session.id, initialStep.id, page);
+
+  const result = await runAgentLoop({
+    persona: options.persona,
+    task: options.run.task,
+    model: options.model,
+    navigationOptions: options.navigationOptions,
+    maxActions: Math.max(0, budget.maxActions - budget.actions),
+    hardCostCapUsd: Math.max(0, options.run.limits.hardCostCapUsd - options.run.costTotalUsd),
+    onUsage: (usage) => addRunCost(options.run.id, usage.costUsd),
+    signal,
+    observe: () => observePage(page),
+    execute: (action, observation) =>
+      executeAgentAction(action, observation, page, options.session, budget, getBlockedRequest),
+  });
+  return { ...result, evidenceStepIds: [initialStep.id, ...result.evidenceStepIds] };
+}
+
+/** Runs a model-selected but policy-validated persona loop in a fresh browser context. */
+export async function runPersonaAgentSession(
+  options: RunPersonaSessionOptions,
+): Promise<AgentLoopResult> {
+  const budget: SessionBudget = {
+    actions: 0,
+    maxActions: options.run.limits.maxActionsPerSession,
+    deadlineAt: Date.now() + options.run.limits.maxSessionSeconds * 1000,
+  };
+  let browser: Browser | null = null;
+  let context: BrowserContext | null = null;
+  const monitorController = new AbortController();
+  try {
+    const resolverRules = await browserResolverRules(options.navigationOptions);
+    browser = await chromium.launch({
+      headless: true,
+      timeout: Math.min(10_000, remainingMs(budget)),
+      args: [
+        '--renderer-process-limit=2',
+        '--js-flags=--max-old-space-size=256',
+        '--disable-background-networking',
+        ...resolverRules,
+      ],
+    });
+    activeBrowserCount += 1;
+    context = await browser.newContext({
+      acceptDownloads: false,
+      viewport: {
+        width: options.session.device.viewportWidth,
+        height: options.session.device.viewportHeight,
+      },
+      userAgent: options.session.device.userAgent,
+      reducedMotion: options.session.device.reducedMotion ? 'reduce' : 'no-preference',
+    });
+    let blockedRequest: BlockedRequest | null = null;
+    const onBlocked = (blockedTarget: BlockedRequest) => {
+      blockedRequest ??= blockedTarget;
+    };
+    await installNavigationGuard(context, options.navigationOptions, onBlocked);
+    context.on('page', (newPage) => {
+      newPage.on('download', (download) => rejectDownload(download, onBlocked));
+    });
+    const page = await context.newPage();
+    page.on('download', (download) => rejectDownload(download, onBlocked));
+    page.setDefaultTimeout(remainingMs(budget));
+    page.setDefaultNavigationTimeout(0);
+
+    return await Promise.race([
+      executePersonaAgent(page, options, budget, () => blockedRequest, monitorController.signal),
+      monitorSession(budget, options, monitorController.signal),
+    ]);
+  } finally {
+    monitorController.abort();
+    if (browser) {
       await browser.close().catch(() => undefined);
       activeBrowserCount -= 1;
     } else {

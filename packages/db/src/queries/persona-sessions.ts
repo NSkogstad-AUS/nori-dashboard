@@ -2,6 +2,7 @@ import {
   isValidSessionTransition,
   type PersonaDeviceSettings,
   type PersonaSession,
+  type SessionFailureKind,
   type SessionState,
 } from '@nori/contracts';
 import { getDb } from '../client';
@@ -25,8 +26,8 @@ export async function createPersonaSession(
   const [row] = await sql<Record<string, unknown>[]>`
     insert into persona_sessions (run_id, persona_id, persona_version, device)
     values (${input.runId}, ${input.personaId}, ${input.personaVersion}, ${sql.json(input.device)})
-    returning id, run_id, persona_id, persona_version, attempt, device, state, heartbeat_at,
-      created_at, updated_at
+    returning id, run_id, persona_id, persona_version, attempt, device, state, failure_kind,
+      failure_message, heartbeat_at, created_at, updated_at
   `;
   if (!row) {
     throw new Error(`createPersonaSession: insert returned no row for runId ${input.runId}`);
@@ -37,8 +38,8 @@ export async function createPersonaSession(
 export async function getPersonaSessionById(sessionId: string): Promise<PersonaSession | null> {
   const sql = getDb();
   const [row] = await sql<Record<string, unknown>[]>`
-    select id, run_id, persona_id, persona_version, attempt, device, state, heartbeat_at,
-      created_at, updated_at
+    select id, run_id, persona_id, persona_version, attempt, device, state, failure_kind,
+      failure_message, heartbeat_at, created_at, updated_at
     from persona_sessions
     where id = ${sessionId}
   `;
@@ -62,8 +63,8 @@ export async function updateSessionState(
     update persona_sessions
     set state = ${to}, updated_at = now()
     where id = ${sessionId} and state = ${from}
-    returning id, run_id, persona_id, persona_version, attempt, device, state, heartbeat_at,
-      created_at, updated_at
+    returning id, run_id, persona_id, persona_version, attempt, device, state, failure_kind,
+      failure_message, heartbeat_at, created_at, updated_at
   `;
   if (!row) {
     throw new Error(
@@ -79,6 +80,19 @@ export async function touchHeartbeat(sessionId: string): Promise<void> {
   await sql`
     update persona_sessions
     set heartbeat_at = now(), updated_at = now()
+    where id = ${sessionId}
+  `;
+}
+
+export async function recordSessionFailure(
+  sessionId: string,
+  kind: SessionFailureKind,
+  message: string,
+): Promise<void> {
+  const sql = getDb();
+  await sql`
+    update persona_sessions
+    set failure_kind = ${kind}, failure_message = ${message.slice(0, 2000)}, updated_at = now()
     where id = ${sessionId}
   `;
 }

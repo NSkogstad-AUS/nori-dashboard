@@ -8,6 +8,11 @@ import {
 import { getDb } from '../client';
 import { rowToCamelCase } from '../row-mapping';
 
+function rowToRun(row: Record<string, unknown>): Run {
+  const run = rowToCamelCase<Run>(row);
+  return { ...run, costTotalUsd: Number(run.costTotalUsd) };
+}
+
 // Every function here takes workspaceId as a required parameter and scopes its WHERE clause on
 // it, matching packages/db/src/queries/websites.ts's established pattern (see
 // plan/PHASE_3_PLAN.md section 4.6's cross-workspace isolation test).
@@ -37,7 +42,7 @@ export async function createRun(workspaceId: string, input: CreateRunInput): Pro
   if (!row) {
     throw new Error(`createRun: insert returned no row for workspaceId ${workspaceId}`);
   }
-  return rowToCamelCase<Run>(row);
+  return rowToRun(row);
 }
 
 export async function getRunById(workspaceId: string, runId: string): Promise<Run | null> {
@@ -48,7 +53,7 @@ export async function getRunById(workspaceId: string, runId: string): Promise<Ru
     from runs
     where workspace_id = ${workspaceId} and id = ${runId}
   `;
-  return row ? rowToCamelCase<Run>(row) : null;
+  return row ? rowToRun(row) : null;
 }
 
 /**
@@ -64,7 +69,7 @@ export async function getRunByIdUnscoped(runId: string): Promise<Run | null> {
     from runs
     where id = ${runId}
   `;
-  return row ? rowToCamelCase<Run>(row) : null;
+  return row ? rowToRun(row) : null;
 }
 
 export async function getRunCancellationState(runId: string): Promise<CancelRequestState | null> {
@@ -120,5 +125,17 @@ export async function updateRunState(runId: string, from: RunState, to: RunState
         'concurrent update or run does not exist',
     );
   }
-  return rowToCamelCase<Run>(row);
+  return rowToRun(row);
+}
+
+export async function addRunCost(runId: string, costUsd: number): Promise<void> {
+  if (!Number.isFinite(costUsd) || costUsd < 0) {
+    throw new Error('addRunCost: cost must be a non-negative finite number');
+  }
+  const sql = getDb();
+  await sql`
+    update runs
+    set cost_total_usd = cost_total_usd + ${costUsd}, updated_at = now()
+    where id = ${runId}
+  `;
 }

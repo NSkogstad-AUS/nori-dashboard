@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "seed-fixture-run": "tsx src/run-fixture-job.ts",
+    "run-agent-fixture": "tsx src/run-agent-fixture.ts",
     "build": "tsc",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit"
