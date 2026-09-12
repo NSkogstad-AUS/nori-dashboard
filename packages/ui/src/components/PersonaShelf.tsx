@@ -6,6 +6,7 @@ export interface PersonaShelfPerson {
   id: string;
   name: string;
   emoji: string;
+  photoSrc?: string;
   role: string;
   colorClass: string;
   issues: number;
@@ -54,6 +55,7 @@ export function PersonaShelf({
             id={person.id}
             name={person.name}
             emoji={person.emoji}
+            photoSrc={person.photoSrc}
             role={person.role}
             colorClass={person.colorClass}
             issues={person.issues}

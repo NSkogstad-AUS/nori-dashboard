@@ -169,6 +169,7 @@ function PersonaShelfSection({ onOpenLibrary }: { onOpenLibrary: () => void }) {
       id: persona.id,
       name: persona.name,
       emoji: persona.emoji,
+      photoSrc: PERSONA_PHOTO_SRC[persona.name],
       role: persona.goal,
       colorClass: PERSONA_COLOR_CLASS[persona.name] ?? 'peach',
       issues: findingCount,

@@ -502,41 +502,54 @@ main {
   margin: 0;
 }
 
+/* Rectangular card, matching the persona library's PersonaCard treatment: a photo banner on
+   top, then name/role/issue-count below — same click-to-select button behavior as before, just
+   a taller card shape instead of a horizontal pill. */
 .person {
   position: relative;
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   text-align: left;
-  gap: 12px;
-  min-height: 66px;
-  padding: var(--space-sm) 14px;
+  gap: 0;
+  padding: 0;
   border-radius: var(--radius-md);
   background: var(--paper);
   border: 1px solid var(--line);
+  overflow: hidden;
   min-width: 0;
 }
 
-/* Persona identity is typography + a monogram glyph now, not a colored pill background — the
-   soft fills below are reserved for the monogram itself, a small fixed-size mark, not the whole
-   pill. This is the one place a pastel fill still legitimately helps tell people apart. */
-.person .emoji {
-  width: 36px;
-  height: 36px;
-  font-size: 19px;
-  flex-shrink: 0;
+.person-photo-frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 5 / 4;
   background: var(--peach);
-  border-radius: 50%;
 }
 
-.person.blue .emoji {
+.person.blue .person-photo-frame {
   background: var(--blue);
 }
-.person.violet .emoji {
+.person.violet .person-photo-frame {
   background: var(--violet);
 }
-.person.lime .emoji {
+.person.lime .person-photo-frame {
   background: var(--lime);
+}
+
+.person-photo-frame .emoji {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  font-size: 32px;
+  background: none;
+}
+
+.person-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .emoji {
@@ -554,6 +567,7 @@ main {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  padding: var(--space-sm) 14px 0;
 }
 
 .person-copy strong {
@@ -570,7 +584,6 @@ main {
 /* Issue count: color (--signal) is reserved for when there is something to report. Zero issues
    renders as quiet, ink-muted text — no red badge for "nothing found". */
 .issue-count {
-  margin-left: auto;
   flex-shrink: 0;
   display: flex;
   align-items: baseline;
@@ -578,6 +591,7 @@ main {
   font-size: var(--text-2xs);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  padding: var(--space-2xs) 14px var(--space-sm);
 }
 
 .person.has-issues .issue-count {
@@ -2362,16 +2376,13 @@ form > .pill {
   }
   .people {
     gap: 10px;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .person {
-    min-height: 60px;
-    padding: 10px 15px;
+  .person-copy {
+    padding: var(--space-xs) 12px 0;
   }
-  .person .emoji {
-    width: 32px;
-    height: 32px;
-    font-size: 17px;
+  .issue-count {
+    padding: var(--space-2xs) 12px var(--space-xs);
   }
   .person-copy small {
     font-size: var(--text-2xs);

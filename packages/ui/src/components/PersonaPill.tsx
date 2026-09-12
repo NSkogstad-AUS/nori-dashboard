@@ -4,6 +4,8 @@ export interface PersonaPillProps {
   id: string;
   name: string;
   emoji: string;
+  /** When provided, rendered in place of the emoji avatar. */
+  photoSrc?: string;
   role: string;
   colorClass: string;
   issues: number;
@@ -22,6 +24,7 @@ export function PersonaPill({
   id,
   name,
   emoji,
+  photoSrc,
   role,
   colorClass,
   issues,
@@ -37,7 +40,13 @@ export function PersonaPill({
       aria-pressed={selected}
       onClick={() => onSelect(id)}
     >
-      <span className="emoji">{emoji}</span>
+      <span className="person-photo-frame">
+        {photoSrc ? (
+          <img src={photoSrc} alt="" className="person-photo" />
+        ) : (
+          <span className="emoji">{emoji}</span>
+        )}
+      </span>
       <span className="person-copy">
         <strong>{name}</strong>
         <small>{role}</small>
