@@ -7,7 +7,7 @@ import '@nori/ui/src/styles/components.css';
 import { WorkspaceProvider } from '../context/workspace-context';
 import { NewRunDialogProvider } from '../context/new-run-dialog-context';
 import { AppShellFrame } from './app-shell-frame';
-import { fraunces, inter } from '../lib/fonts';
+import { inter } from '../lib/fonts';
 
 export const metadata: Metadata = {
   title: 'Nori',
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${inter.variable}`}>
+    <html lang="en" className={inter.variable}>
       <body>
         <WorkspaceProvider>
           <NewRunDialogProvider>

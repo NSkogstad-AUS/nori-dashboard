@@ -76,6 +76,16 @@
       box-shadow 360ms ease;
   }
 
+  .person-heading {
+    transition:
+      left 560ms cubic-bezier(0.22, 0.8, 0.3, 1),
+      right 560ms cubic-bezier(0.22, 0.8, 0.3, 1);
+  }
+
+  .person-heading strong {
+    transition: font-size 560ms cubic-bezier(0.22, 0.8, 0.3, 1);
+  }
+
   .person-avatar,
   .person-identity-emoji {
     transition:
