@@ -33,6 +33,7 @@ import { validateWebsiteUrl } from '../../lib/validate-url';
 import type {
   Finding,
   Persona,
+  Website,
   PersonaReport,
   PersonaSession,
   Run,
@@ -59,6 +60,56 @@ const PERSONA_PHOTO_SRC: Record<string, string> = {
 // This mirrors that: Journeys always explores this one sample run's data.
 const CANONICAL_RUN = runs[0]!;
 
+/**
+ * Returns the id of the workspace website whose origin matches `url`, registering it first if
+ * this workspace isn't tracking that origin yet. Returns null if it can't be resolved.
+ *
+ * The run's navigation allowlist is derived from its website's origin (api/runs/route.ts), so
+ * this is what lets the agent actually visit the URL typed on this page.
+ */
+async function resolveWebsiteForOrigin(
+  url: URL,
+  websites: Website[],
+  addWebsite: (website: Website) => void,
+): Promise<string | null> {
+  const existing = websites.find((website) => {
+    try {
+      return new URL(website.origin).origin === url.origin;
+    } catch {
+      return false;
+    }
+  });
+  if (existing) return existing.id;
+
+  const response = await fetch('/api/websites', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ displayName: url.hostname, origin: url.origin }),
+  });
+  if (response.ok) {
+    const website = (await response.json()) as Website;
+    // Keeps the sidebar in step with the origin this run actually targets.
+    addWebsite(website);
+    return website.id;
+  }
+  // 409: another tab/session already registered this origin, or WorkspaceContext's seeded list
+  // was stale. Re-read the server's list and use the row that's there.
+  if (response.status === 409) {
+    const listResponse = await fetch('/api/websites');
+    if (!listResponse.ok) return null;
+    const { items }: { items: Website[] } = await listResponse.json();
+    const match = items.find((website) => {
+      try {
+        return new URL(website.origin).origin === url.origin;
+      } catch {
+        return false;
+      }
+    });
+    return match?.id ?? null;
+  }
+  return null;
+}
+
 export default function JourneysClient() {
   return (
     <JourneyViewProvider>
@@ -72,7 +123,7 @@ function JourneysContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const runId = searchParams.get('runId');
-  const { selectedWebsiteId } = useWorkspace();
+  const { websites, addWebsite } = useWorkspace();
   const { openDialog: openNewRun } = useNewRunDialog();
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
@@ -115,16 +166,26 @@ function JourneysContent() {
   // persona selected on the shelf in step 2 — one run, one persona, so the shelf's existing
   // single-selection is exactly the run's perspective. Neither is re-asked for.
   //
-  // The shelf's personas come from apps/web/src/fixtures, whose ids are per-process
-  // crypto.randomUUID() values that no real personas row matches (see app-shell-frame.tsx), so
-  // the request has to carry a DB persona id — fetched here and matched to the selected shelf
-  // entry by name. Anything that can't be resolved from page state (no URL yet, nobody selected,
-  // no website, no name match in the DB) falls through to the shared NewRunDialog rather than
-  // failing silently, so the button always leads somewhere.
+  // Two id translations are needed before POSTing, because neither piece of page state is a
+  // real DB id:
+  //
+  //  * Persona. The shelf's personas come from apps/web/src/fixtures, whose ids are per-process
+  //    crypto.randomUUID() values that no personas row matches (see app-shell-frame.tsx), so the
+  //    selected one is matched to a DB persona by name.
+  //  * Website. api/runs derives the run's allowedOrigins from its website's origin, and
+  //    packages/agent/src/safe-navigation.ts refuses to navigate anywhere outside that
+  //    allowlist. So the run must be attached to the website matching the URL actually typed
+  //    here — NOT the sidebar's selected website, which is a different origin and makes the
+  //    agent fail the target as origin_not_allowlisted. An origin that isn't tracked yet is
+  //    registered first, the same way the websites page's NewWebsiteDialog does it.
+  //
+  // Anything that can't be resolved (no URL yet, nobody selected, no persona name match) falls
+  // through to the shared NewRunDialog rather than failing silently, so the button always leads
+  // somewhere.
   const beginRun = useCallback(async () => {
     const validUrl = validateWebsiteUrl(websiteUrl);
     const selectedPersona = personas.find((persona) => persona.id === selectedPersonId);
-    if (!validUrl || !selectedWebsiteId || !selectedPersona) {
+    if (!validUrl || !selectedPersona) {
       openNewRun();
       return;
     }
@@ -141,11 +202,17 @@ function JourneysContent() {
         return;
       }
 
+      const websiteId = await resolveWebsiteForOrigin(validUrl, websites, addWebsite);
+      if (!websiteId) {
+        announce(`Could not add ${validUrl.hostname} to your workspace.`);
+        return;
+      }
+
       const response = await fetch('/api/runs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          websiteId: selectedWebsiteId,
+          websiteId,
           url: validUrl.href,
           task: 'Explore the site and report anything that gets in the way of completing a typical task.',
           personaIds: [dbPersona.id],
@@ -169,7 +236,7 @@ function JourneysContent() {
     } finally {
       setRunPending(false);
     }
-  }, [websiteUrl, selectedPersonId, selectedWebsiteId, openNewRun, setPlaying, setMode, router]);
+  }, [websiteUrl, selectedPersonId, websites, addWebsite, openNewRun, setPlaying, setMode, router]);
 
   return (
     <>
