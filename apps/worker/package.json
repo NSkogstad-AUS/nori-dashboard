@@ -4,17 +4,21 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --experimental-strip-types --watch src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "seed-fixture-run": "tsx src/run-fixture-job.ts",
     "build": "tsc",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@nori/agent": "*",
     "@nori/contracts": "*",
-    "@nori/db": "*"
+    "@nori/db": "*",
+    "playwright": "^1.49.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "tsx": "^4.22.4",
     "typescript": "^5.7.2"
   }
 }
