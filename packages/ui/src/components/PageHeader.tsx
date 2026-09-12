@@ -9,6 +9,7 @@ export interface PageHeaderProps {
   title: string;
   note: string;
   onNewRun: () => void;
+  showHeading?: boolean;
 }
 
 export function PageHeader({
@@ -17,6 +18,7 @@ export function PageHeader({
   title,
   note,
   onNewRun,
+  showHeading = true,
 }: PageHeaderProps) {
   return (
     <>
@@ -31,12 +33,14 @@ export function PageHeader({
           </button>
         </div>
       </header>
-      <div className="page-heading">
-        <div>
-          <h1>{title}</h1>
-          <p>{note}</p>
+      {showHeading && (
+        <div className="page-heading">
+          <div>
+            <h1>{title}</h1>
+            <p>{note}</p>
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

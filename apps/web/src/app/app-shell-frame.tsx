@@ -61,8 +61,7 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
   const { selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed } = useWorkspace();
   const { open: newRunOpen, openDialog: openNewRun, closeDialog: closeNewRun } = useNewRunDialog();
 
-  const activeWebsite =
-    websites.find((site) => site.id === selectedWebsiteId) ?? websites[0]!;
+  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0]!;
 
   const navItems: SidebarNavItem[] = NAV_ITEMS.map((item) => ({
     ...item,
@@ -70,7 +69,10 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
   }));
 
   const siteItems = websites.map((site) => {
-    const marks = SITE_MARKS[site.displayName] ?? { mark: site.displayName[0] ?? '?', colorClass: 'blue' };
+    const marks = SITE_MARKS[site.displayName] ?? {
+      mark: site.displayName[0] ?? '?',
+      colorClass: 'blue',
+    };
     return {
       id: site.id,
       name: site.displayName,
@@ -128,6 +130,7 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
             websiteName={activeWebsite.displayName}
             sectionLabel={sectionLabel}
             title={title}
+            showHeading={pathname !== '/journeys'}
             note="The whole experience, connected."
             onNewRun={openNewRun}
           />
