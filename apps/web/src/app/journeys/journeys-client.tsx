@@ -5,6 +5,7 @@
 // plan/PHASE_2_PLAN.md section 6.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   JourneyViewSwitch,
   PersonaShelf,
@@ -27,7 +28,7 @@ import {
   stageIndexForFinding,
 } from '../../lib/journey-derivations';
 import { validateWebsiteUrl } from '../../lib/validate-url';
-import type { Finding } from '@nori/contracts';
+import type { Finding, PersonaReport, PersonaSession, Run, SessionState, Step } from '@nori/contracts';
 
 const PERSONA_COLOR_CLASS: Record<string, string> = {
   Alex: 'peach',
@@ -58,6 +59,8 @@ export default function JourneysClient() {
 
 function JourneysContent() {
   const { mode, setMode, setPlaying, setCaptureMessage } = useJourneyView();
+  const searchParams = useSearchParams();
+  const runId = searchParams.get('runId');
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -130,7 +133,13 @@ function JourneysContent() {
         </div>
         <div className="journey-step journey-experience">
           <JourneyViewSwitch mode={mode} onChange={setMode} />
-          {mode === 'live' ? <LiveView onOpenFinding={openFinding} /> : <OverviewAtlas />}
+          {mode === 'live' ? (
+            <LiveView onOpenFinding={openFinding} />
+          ) : runId ? (
+            <LiveRunTracker runId={runId} />
+          ) : (
+            <OverviewAtlas />
+          )}
         </div>
       </div>
       <FindingDrawer
@@ -347,6 +356,185 @@ function OverviewAtlas() {
           aria-pressed={expandedIndex === 2}
           onClick={() => toggleCard(2)}
         />
+      </div>
+    </section>
+  );
+}
+
+// The 3 working stages a persona session moves through with real step content — see
+// SESSION_STATES in packages/contracts/src/state-machines.ts. 'queued' has no step content yet
+// (nothing has started), and a terminal state (completed/failed/cancelled) is the run's outcome
+// rather than a 4th working stage, so it's shown as a status line instead of forcing a 4th card
+// into a grid (.overview-flow, packages/ui/src/styles/components.css) built for exactly 3.
+const TRACKER_STAGES: { state: SessionState; label: string }[] = [
+  { state: 'starting', label: 'Getting ready' },
+  { state: 'exploring', label: 'Exploring the site' },
+  { state: 'analysing', label: 'Reviewing what happened' },
+];
+
+const STEP_ACTION_LABEL: Record<Step['action'], string> = {
+  navigate: 'Opened',
+  click: 'Clicked',
+  scroll: 'Scrolled',
+  type: 'Typed into',
+  wait: 'Waited',
+  capture: 'Took a screenshot',
+  finish: 'Finished',
+};
+
+function stepSummary(step: Step): string {
+  const verb = STEP_ACTION_LABEL[step.action];
+  if (step.outcome === 'blocked') {
+    return `${verb} — blocked${step.observation ? `: ${step.observation}` : ''}`;
+  }
+  if (step.outcome === 'error') {
+    return `${verb} — didn't work${step.observation ? `: ${step.observation}` : ''}`;
+  }
+  if (step.observation) return `${verb} — ${step.observation}`;
+  const url = step.urlAfter ?? step.urlBefore;
+  if (url) {
+    try {
+      return `${verb} ${new URL(url).pathname || '/'}`;
+    } catch {
+      return verb;
+    }
+  }
+  return verb;
+}
+
+interface RunProgressResponse {
+  run: Run;
+  sessions: { session: PersonaSession; steps: Step[]; report: PersonaReport | null }[];
+}
+
+const TERMINAL_SESSION_STATES: readonly SessionState[] = ['completed', 'failed', 'cancelled'];
+
+function LiveRunTracker({ runId }: { runId: string }) {
+  const [progress, setProgress] = useState<RunProgressResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/runs/${runId}/progress`);
+        if (!response.ok) {
+          const body: { message?: string } = await response.json().catch(() => ({}));
+          if (!cancelled) setError(body.message ?? 'Could not load run progress.');
+          return;
+        }
+        const data: RunProgressResponse = await response.json();
+        if (cancelled) return;
+        setProgress(data);
+        setError(null);
+        const isTerminal =
+          data.run.state === 'completed' ||
+          data.run.state === 'completed_with_errors' ||
+          data.run.state === 'failed' ||
+          data.run.state === 'cancelled';
+        if (!isTerminal) {
+          timeoutId = setTimeout(poll, 2000);
+        }
+      } catch {
+        if (!cancelled) setError('Could not load run progress.');
+      }
+    };
+
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [runId]);
+
+  if (error) {
+    return (
+      <section className="map-panel">
+        <p role="alert">{error}</p>
+      </section>
+    );
+  }
+  if (!progress) {
+    return (
+      <section className="map-panel">
+        <p aria-live="polite">Loading run…</p>
+      </section>
+    );
+  }
+
+  const sessionDetail = progress.sessions[selectedSessionIndex] ?? progress.sessions[0];
+  if (!sessionDetail) {
+    return (
+      <section className="map-panel">
+        <p>This run has no persona sessions yet.</p>
+      </section>
+    );
+  }
+
+  const { session, steps, report } = sessionDetail;
+  const isTerminal = TERMINAL_SESSION_STATES.includes(session.state);
+  const activeStageIndex = TRACKER_STAGES.findIndex((stage) => stage.state === session.state);
+
+  return (
+    <section className="map-panel">
+      {progress.sessions.length > 1 ? (
+        <div className="journey-tools" role="tablist" aria-label="Persona sessions">
+          <div>
+            {progress.sessions.map(({ session: s }, index) => (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={index === selectedSessionIndex}
+                aria-pressed={index === selectedSessionIndex}
+                onClick={() => setSelectedSessionIndex(index)}
+              >
+                Session {index + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      <p aria-live="polite" className="journey-tools">
+        {isTerminal
+          ? `Done — ${session.state}${report ? `: ${report.summary}` : ''}`
+          : `In progress — ${TRACKER_STAGES[Math.max(activeStageIndex, 0)]?.label ?? 'Getting ready'}`}
+      </p>
+      <div className="overview-flow">
+        {TRACKER_STAGES.map((stage, index) => {
+          const stageSteps = steps.filter((step) => step.sessionState === stage.state);
+          const isPast = activeStageIndex > index || isTerminal;
+          const isActive = activeStageIndex === index && !isTerminal;
+          const expanded = isActive || (isTerminal && index === TRACKER_STAGES.length - 1);
+          return (
+            <div key={stage.state} style={{ display: 'contents' }}>
+              {index > 0 ? <OverviewFlowArrow /> : null}
+              <button
+                type="button"
+                className={`overview-flow-card${expanded ? ' expanded' : ''}`}
+                aria-pressed={expanded}
+                aria-current={isActive ? 'step' : undefined}
+                disabled={!isPast && !isActive}
+              >
+                <div className="overview-flow-card-content">
+                  <strong>{stage.label}</strong>
+                  {stageSteps.length > 0 ? (
+                    <ul aria-live={isActive ? 'polite' : undefined}>
+                      {stageSteps.map((step) => (
+                        <li key={step.id}>{stepSummary(step)}</li>
+                      ))}
+                    </ul>
+                  ) : isActive ? (
+                    <p>Working…</p>
+                  ) : null}
+                </div>
+              </button>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

@@ -900,6 +900,12 @@ main {
   border: 1px solid var(--line);
   cursor: pointer;
   padding: 0;
+  text-align: left;
+}
+
+.overview-flow-card:disabled {
+  cursor: default;
+  opacity: 0.55;
 }
 
 /* Clicking a card grows it both horizontally (its grid column's fr share increases while the
@@ -909,6 +915,59 @@ main {
    cubic-bezier(0.22, 0.8, 0.3, 1)), for a consistent feel across both interactions. */
 .overview-flow-card.expanded {
   min-height: 340px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Live-tracker card content (see journeys-client.tsx's LiveRunTracker) — the empty
+   .overview-flow-card placeholder above never needed internal layout; the tracker is the first
+   real consumer of card content. */
+.overview-flow-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  height: 100%;
+  padding: var(--space-md);
+  overflow-y: auto;
+}
+
+.overview-flow-card-content > strong {
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+.overview-flow-card-content > ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.overview-flow-card-content > ul > li {
+  position: relative;
+  padding-left: var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.overview-flow-card-content > ul > li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.overview-flow-card-content > p {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--muted);
 }
 
 /* Pinned to the grid row's start with a fixed height, so it always centers within the small

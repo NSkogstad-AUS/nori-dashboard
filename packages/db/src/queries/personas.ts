@@ -17,6 +17,21 @@ export async function getPersonaById(id: string): Promise<Persona | null> {
   return row ? rowToCamelCase<Persona>(row) : null;
 }
 
+/**
+ * Every persona, latest version per name first — lets a client (e.g. NewRunDialog's picker)
+ * resolve real persona ids instead of relying on fixture UUIDs, which are generated fresh per
+ * process and never match a real personas.id.
+ */
+export async function listPersonas(): Promise<Persona[]> {
+  const sql = getDb();
+  const rows = await sql<Record<string, unknown>[]>`
+    select id, name, version, emoji, goal, behavior, device, limitations, created_at
+    from personas
+    order by name asc, version desc
+  `;
+  return rows.map((row) => rowToCamelCase<Persona>(row));
+}
+
 export interface EnsureSystemPersonaOptions {
   name?: string;
 }
@@ -51,6 +66,47 @@ export async function ensureAlexPersona(): Promise<Persona> {
     returning id, name, version, emoji, goal, behavior, device, limitations, created_at
   `;
   if (!row) throw new Error('ensureAlexPersona: insert returned no row');
+  return rowToCamelCase<Persona>(row);
+}
+
+export interface PersonaSeed {
+  name: string;
+  emoji: string;
+  goal: string;
+  behavior: string;
+  device: {
+    viewportWidth: number;
+    viewportHeight: number;
+    userAgent: string;
+    reducedMotion: boolean;
+  };
+  limitations: string[];
+}
+
+/**
+ * Upserts a real persona row from a fixed seed (name/version is the upsert key, matching the
+ * table's unique constraint) — used to keep the 4 fixture personas (see
+ * apps/web/src/fixtures/personas.ts) available as real DB rows so a real run can reference any of
+ * them, not just Alex (see ensureAlexPersona, which predates this and is left as-is since tests
+ * already depend on its exact name/shape).
+ */
+export async function ensurePersonaFromSeed(seed: PersonaSeed): Promise<Persona> {
+  const sql = getDb();
+  const [row] = await sql<Record<string, unknown>[]>`
+    insert into personas (name, version, emoji, goal, behavior, device, limitations)
+    values (
+      ${seed.name}, 1, ${seed.emoji}, ${seed.goal}, ${seed.behavior},
+      ${sql.json(seed.device)}, ${sql.json(seed.limitations)}
+    )
+    on conflict (name, version) do update set
+      emoji = excluded.emoji,
+      goal = excluded.goal,
+      behavior = excluded.behavior,
+      device = excluded.device,
+      limitations = excluded.limitations
+    returning id, name, version, emoji, goal, behavior, device, limitations, created_at
+  `;
+  if (!row) throw new Error(`ensurePersonaFromSeed: insert returned no row for ${seed.name}`);
   return rowToCamelCase<Persona>(row);
 }
 

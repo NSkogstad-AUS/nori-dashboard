@@ -47,6 +47,23 @@ export async function getPersonaSessionById(sessionId: string): Promise<PersonaS
 }
 
 /**
+ * A run can have up to 3 persona sessions (createRunRequestSchema.personaIds is .min(1).max(3)) —
+ * ordered by creation so a caller (e.g. the live-progress API route) can consistently show
+ * "session 1, 2, 3" across polls rather than an arbitrary order.
+ */
+export async function listSessionsForRun(runId: string): Promise<PersonaSession[]> {
+  const sql = getDb();
+  const rows = await sql<Record<string, unknown>[]>`
+    select id, run_id, persona_id, persona_version, attempt, device, state, failure_kind,
+      failure_message, heartbeat_at, created_at, updated_at
+    from persona_sessions
+    where run_id = ${runId}
+    order by created_at asc
+  `;
+  return rows.map((row) => rowToCamelCase<PersonaSession>(row));
+}
+
+/**
  * Validates the transition against packages/contracts' SESSION_TRANSITIONS before writing it —
  * throws rather than silently persisting an invalid state change.
  */

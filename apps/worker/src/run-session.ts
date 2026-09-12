@@ -118,7 +118,12 @@ async function recordStep(
   urlAfter: string | null,
   observation: string | null,
 ) {
-  return appendStep({ sessionId, action, outcome, urlBefore, urlAfter, observation });
+  // Every step recorded in this file happens while the browser is actively navigating/acting —
+  // main.ts only calls into runFixedSessionScript/runPersonaAgentSession after transitioning the
+  // session to 'exploring', and the 'analysing' stage (producing the persona report) happens
+  // afterward, outside this file — so 'exploring' is factually correct for every call site here,
+  // not a placeholder.
+  return appendStep({ sessionId, action, outcome, urlBefore, urlAfter, observation, sessionState: 'exploring' });
 }
 
 async function attachScreenshot(sessionId: string, stepId: string, page: Page): Promise<Buffer> {

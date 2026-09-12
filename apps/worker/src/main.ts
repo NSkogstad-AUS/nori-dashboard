@@ -6,6 +6,7 @@ import {
   cancelJob,
   completeJob,
   createPersonaReport,
+  ensurePersonaFromSeed,
   failJob,
   getPersonaById,
   getRunCancellationState,
@@ -17,6 +18,7 @@ import {
   updateRunCancellationState,
   updateRunState,
   updateSessionState,
+  type PersonaSeed,
 } from '@nori/db';
 import {
   AgentLoopError,
@@ -45,6 +47,72 @@ const POLL_INTERVAL_MS = Number(process.env.WORKER_POLL_INTERVAL_MS ?? 2000);
 let polling = true;
 let currentJobPromise: Promise<void> | null = null;
 
+// Real DB rows for the remaining 3 fixture personas (apps/web/src/fixtures/personas.ts) — Alex
+// already has its own dedicated ensureAlexPersona() that existing tests depend on by name/shape,
+// so it's left as-is; these three are new so a real run can pick any of the 4 personas the
+// NewRunDialog picker shows, not just Alex. Seeded once at worker startup (self-healing, matching
+// how ensureWorkspace/ensureAlexPersona already upsert on first use) rather than a one-off
+// migration script that could be forgotten in a fresh environment.
+const REMAINING_PERSONA_SEEDS: PersonaSeed[] = [
+  {
+    name: 'Jamie',
+    emoji: '👩‍💻',
+    goal: 'Busy professional',
+    behavior:
+      'Moves quickly and skims content for the shortest path to a decision, abandoning ' +
+      'anything that takes too long to summarize.',
+    device: {
+      viewportWidth: 1440,
+      viewportHeight: 900,
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      reducedMotion: false,
+    },
+    limitations: [],
+  },
+  {
+    name: 'Sam',
+    emoji: '🧔',
+    goal: 'Careful evaluator',
+    behavior:
+      'Reads every detail before acting, double-checking terms and commitments and ' +
+      'backtracking to earlier pages when information feels incomplete.',
+    device: {
+      viewportWidth: 1440,
+      viewportHeight: 900,
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      reducedMotion: false,
+    },
+    limitations: [],
+  },
+  {
+    name: 'Riley',
+    emoji: '👩‍🦽',
+    goal: 'Keyboard-first visitor',
+    behavior:
+      'Navigates entirely by keyboard, relying on a predictable tab order and a visible ' +
+      'focus indicator to move through every page.',
+    device: {
+      viewportWidth: 1440,
+      viewportHeight: 900,
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+        '(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      reducedMotion: true,
+    },
+    limitations: [],
+  },
+];
+
+async function ensureRemainingPersonas(): Promise<void> {
+  for (const seed of REMAINING_PERSONA_SEEDS) {
+    await ensurePersonaFromSeed(seed);
+  }
+}
+
 export async function processJob(
   job: NonNullable<Awaited<ReturnType<typeof claimNextJob>>>,
   options: { allowPrivateTargets?: boolean; model?: PersonaActionModel } = {},
@@ -72,7 +140,13 @@ export async function processJob(
   }
 
   const fixtureMode = options.allowPrivateTargets ?? process.env.WORKER_FIXTURE_MODE === 'true';
-  if (!fixtureMode) {
+  // The Phase 4 fixed script is hard-coded to the fixture site's DOM (see run-session.ts's
+  // runFixedSessionScript) — it must never run against a real, non-fixture target. A real,
+  // model-driven session has no such constraint: navigationOptions.allowPrivateTargets below
+  // already rejects private/internal targets by default (fixtureMode is false unless explicitly
+  // set), so a model-driven run against a real public website is safe to proceed without this
+  // gate. Only the fixed-script path needs to be refused outside fixture mode.
+  if (!options.model && !fixtureMode) {
     const message = 'Phase 4 deterministic actions are disabled outside explicit fixture mode';
     await updateSessionState(session.id, session.state, 'failed');
     await updateRunState(run.id, run.state, 'failed');
@@ -225,7 +299,9 @@ export function startWorker(): void {
     console.log(`[worker] ${WORKER_ID} started, health check on http://localhost:${PORT}/health`);
     console.log('[worker] polling for jobs...');
   });
-  void pollLoop();
+  void ensureRemainingPersonas()
+    .catch((error: unknown) => console.error('[worker] failed to seed personas', error))
+    .finally(() => void pollLoop());
 }
 
 function shutdown(signal: string) {

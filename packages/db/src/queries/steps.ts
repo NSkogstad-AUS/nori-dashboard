@@ -1,4 +1,4 @@
-import type { Step, StepAction, StepOutcome } from '@nori/contracts';
+import type { SessionState, Step, StepAction, StepOutcome } from '@nori/contracts';
 import { getDb } from '../client';
 import { rowToCamelCase } from '../row-mapping';
 
@@ -9,6 +9,10 @@ export interface AppendStepInput {
   urlBefore: string | null;
   urlAfter: string | null;
   observation: string | null;
+  /** The session's state at the moment this step was recorded — see
+   *  packages/db/src/migrations/005_step_session_state.sql. Callers already know this since
+   *  they just transitioned the session (or are mid-stage) when calling appendStep. */
+  sessionState: SessionState;
 }
 
 /**
@@ -21,14 +25,17 @@ export interface AppendStepInput {
 export async function appendStep(input: AppendStepInput): Promise<Step> {
   const sql = getDb();
   const [row] = await sql<Record<string, unknown>[]>`
-    insert into steps (session_id, sequence, action, outcome, url_before, url_after, observation)
+    insert into steps (
+      session_id, sequence, action, outcome, url_before, url_after, observation, session_state
+    )
     values (
       ${input.sessionId},
       coalesce((select max(sequence) + 1 from steps where session_id = ${input.sessionId}), 0),
-      ${input.action}, ${input.outcome}, ${input.urlBefore}, ${input.urlAfter}, ${input.observation}
+      ${input.action}, ${input.outcome}, ${input.urlBefore}, ${input.urlAfter}, ${input.observation},
+      ${input.sessionState}
     )
     returning id, session_id, sequence, action, outcome, url_before, url_after, observation,
-      created_at
+      session_state, created_at
   `;
   if (!row) {
     throw new Error(`appendStep: insert returned no row for sessionId ${input.sessionId}`);
@@ -40,7 +47,7 @@ export async function listStepsForSession(sessionId: string): Promise<Step[]> {
   const sql = getDb();
   const rows = await sql<Record<string, unknown>[]>`
     select s.id, s.session_id, s.sequence, s.action, s.outcome, s.url_before, s.url_after,
-      s.observation, s.created_at,
+      s.observation, s.session_state, s.created_at,
       coalesce(
         array_agg(sa.artifact_id) filter (where sa.artifact_id is not null),
         array[]::uuid[]

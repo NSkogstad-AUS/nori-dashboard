@@ -61,6 +61,7 @@ const baseSteps: Step[] = RUN_KEYS.flatMap((runKey) => {
         urlAfter: `${origin}${nextPath}`,
         observation: ACTIONS[personaKey][stageIndex]!,
         artifactIds: [],
+        sessionState: 'exploring',
         createdAt: FIXTURE_TIMESTAMP,
       };
       return step;
@@ -84,6 +85,7 @@ const rileyPageLoadErrorStep: Step = {
   urlAfter: null,
   observation: 'The workspace page failed to load after reaching the final step.',
   artifactIds: [],
+  sessionState: 'exploring',
   createdAt: FIXTURE_TIMESTAMP,
 };
 
