@@ -1,46 +1,14 @@
-'use client';
+// Phase 3: Server Component, real DB-backed data (see plan/PHASE_3_PLAN.md section 4.5) —
+// replaces the Phase 2 fixture-driven client component. Fetches the current workspace's
+// websites server-side and passes them to a thin client component for the interactive bits
+// (card click, "add website" dialog).
 
-// Ports prototype/app.js `websites()`. See plan/PHASE_2_PLAN.md section 6.
+import { listWebsitesForWorkspace } from '@nori/db';
+import { requireWorkspace } from '../../lib/workspace-auth';
+import { WebsitesPageClient } from './websites-page-client';
 
-import { useRouter } from 'next/navigation';
-import { websites, runs } from '../../fixtures/index';
-import { useWorkspace } from '../../context/workspace-context';
-
-const SITE_MARKS: Record<string, { mark: string; colorClass: string }> = {
-  Acme: { mark: 'A', colorClass: 'peach' },
-  Forma: { mark: 'F', colorClass: 'violet' },
-  Orbit: { mark: 'O', colorClass: 'blue' },
-};
-
-export default function WebsitesPage() {
-  const router = useRouter();
-  const { setSelectedWebsiteId } = useWorkspace();
-
-  return (
-    <div className="site-grid">
-      {websites.map((site) => {
-        const marks = SITE_MARKS[site.displayName] ?? { mark: '?', colorClass: 'blue' };
-        const runCount = runs.filter((run) => run.websiteId === site.id).length;
-        return (
-          <button
-            key={site.id}
-            type="button"
-            className="website-card"
-            onClick={() => {
-              setSelectedWebsiteId(site.id);
-              router.push('/runs');
-            }}
-          >
-            <span className={`site-avatar ${marks.colorClass}`}>{marks.mark}</span>
-            <h2>{site.displayName}</h2>
-            <p>{new URL(site.origin).hostname}</p>
-            <footer>
-              <span>{runCount} sample runs</span>
-              <span>Open website workspace ↗</span>
-            </footer>
-          </button>
-        );
-      })}
-    </div>
-  );
+export default async function WebsitesPage() {
+  const workspace = await requireWorkspace();
+  const websites = await listWebsitesForWorkspace(workspace.id);
+  return <WebsitesPageClient initialWebsites={websites} />;
 }

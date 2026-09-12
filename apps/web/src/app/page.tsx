@@ -6,7 +6,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { personas, websites, runs } from '../fixtures/index';
 import { STAGE_NAMES, findingsForRun, findingsAtStage } from '../lib/journey-derivations';
-import { useWorkspace } from '../context/workspace-context';
 
 const PERSONA_COLOR_CLASS: Record<string, string> = {
   Alex: 'peach',
@@ -35,13 +34,11 @@ function formatRelativeDate(iso: string): string {
 
 export default function HomePage() {
   const router = useRouter();
-  const { selectedWebsiteId } = useWorkspace();
-  // Phase 3: selectedWebsiteId now comes from real (DB-backed) websites via WorkspaceContext,
-  // but the journey/run data on this page is still fixture-only (out of this phase's scope —
-  // see plan/PHASE_3_PLAN.md section 1). A real website's id will not match any fixture website,
-  // so this intentionally does NOT fall back to the fixture array's first entry on a miss — that
-  // would silently attribute Acme's fixture journey data to a real, unrelated website.
-  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId);
+  // Phase 3: the journey/run/website-count data on this page is still fixture-only (out of this
+  // phase's scope — see plan/PHASE_3_PLAN.md section 1), deliberately not tied to
+  // WorkspaceContext's now-real selectedWebsiteId, since a real website's id would never match a
+  // fixture website and attributing fixture journey data to a real, unrelated site would be
+  // misleading rather than honest about what this page is showing.
 
   const totalFlagged = runs.reduce((sum, run) => sum + findingsForRun(run.id).length, 0);
 
@@ -84,7 +81,7 @@ export default function HomePage() {
       <section className="overview-journey">
         <div className="panel-head">
           <div>
-            <span className="subtle">Latest journey / {activeWebsite.displayName}</span>
+            <span className="subtle">Latest journey / Sample journey</span>
             <h2>Where people pause</h2>
           </div>
           <button
