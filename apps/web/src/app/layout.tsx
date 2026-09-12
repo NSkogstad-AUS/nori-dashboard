@@ -8,18 +8,34 @@ import { WorkspaceProvider } from '../context/workspace-context';
 import { NewRunDialogProvider } from '../context/new-run-dialog-context';
 import { AppShellFrame } from './app-shell-frame';
 import { inter } from '../lib/fonts';
+import { requireWorkspace } from '../lib/workspace-auth';
+import { listWebsitesForWorkspace } from '@nori/db';
 
 export const metadata: Metadata = {
   title: 'Nori',
   description: 'Nori — Journey Atlas sample workspace',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The shell (sidebar site switcher, header) needs the real website list on every route, not
+  // just /websites — fetched once here and passed down as props/seed data rather than each page
+  // re-fetching independently. Middleware (apps/web/src/middleware.ts) already gates every route
+  // except /api/health behind sign-in, so by the time this renders the user should be
+  // authenticated — but this fetch can still fail (DB down, no active org yet), so it's wrapped
+  // rather than left to crash the whole app shell.
+  let websites: Awaited<ReturnType<typeof listWebsitesForWorkspace>> = [];
+  try {
+    const workspace = await requireWorkspace();
+    websites = await listWebsitesForWorkspace(workspace.id);
+  } catch (error) {
+    console.error('RootLayout: failed to load workspace websites', error);
+  }
+
   return (
     <ClerkProvider>
       <html lang="en" className={inter.variable}>
         <body>
-          <WorkspaceProvider>
+          <WorkspaceProvider initialWebsites={websites}>
             <NewRunDialogProvider>
               <AppShellFrame>{children}</AppShellFrame>
             </NewRunDialogProvider>

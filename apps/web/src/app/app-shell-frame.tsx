@@ -20,7 +20,7 @@ import {
 } from '@nori/ui';
 import { useWorkspace } from '../context/workspace-context';
 import { useNewRunDialog } from '../context/new-run-dialog-context';
-import { personas, websites } from '../fixtures/index';
+import { personas } from '../fixtures/index';
 
 const NAV_ITEMS: { href: string; label: string; icon: string }[] = [
   { href: '/', label: 'Home', icon: '⌂' },
@@ -58,10 +58,11 @@ const SITE_MARKS: Record<string, { mark: string; colorClass: string }> = {
 export function AppShellFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed } = useWorkspace();
+  const { websites, selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed } =
+    useWorkspace();
   const { open: newRunOpen, openDialog: openNewRun, closeDialog: closeNewRun } = useNewRunDialog();
 
-  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0]!;
+  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0];
 
   const navItems: SidebarNavItem[] = NAV_ITEMS.map((item) => ({
     ...item,
@@ -127,7 +128,7 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
         }
         header={
           <PageHeader
-            websiteName={activeWebsite.displayName}
+            websiteName={activeWebsite?.displayName ?? 'No websites yet'}
             sectionLabel={sectionLabel}
             title={title}
             showHeading={pathname !== '/journeys'}

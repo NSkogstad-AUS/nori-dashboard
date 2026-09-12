@@ -59,6 +59,9 @@ export type {
   NewRunSubmission,
 } from './components/NewRunDialog';
 
+export { NewWebsiteDialog } from './components/NewWebsiteDialog';
+export type { NewWebsiteDialogProps, NewWebsiteSubmission } from './components/NewWebsiteDialog';
+
 export { FindingDrawer } from './components/FindingDrawer';
 export type { FindingDrawerProps } from './components/FindingDrawer';
 

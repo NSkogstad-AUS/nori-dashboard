@@ -19,10 +19,25 @@ export default function RunsPage() {
   const router = useRouter();
   const { selectedWebsiteId } = useWorkspace();
   const { openDialog: openNewRun } = useNewRunDialog();
-  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0]!;
+  // Phase 3: selectedWebsiteId now comes from real (DB-backed) websites via WorkspaceContext,
+  // but runs/persona data here is still fixture-only (out of this phase's scope — see
+  // plan/PHASE_3_PLAN.md section 1). A real website's id will not match any fixture website, so
+  // this intentionally does NOT fall back to fixtures[0] on a miss — that would silently show
+  // one real website's runs page as if it were Acme's fixture data.
+  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId);
 
-  const matching = runs.filter((run) => run.websiteId === activeWebsite.id);
+  const matching = activeWebsite ? runs.filter((run) => run.websiteId === activeWebsite.id) : [];
   const personaEmojis = personas.slice(0, 3).map((persona) => persona.emoji);
+
+  if (!activeWebsite) {
+    return (
+      <EmptyState
+        tone="empty"
+        title="No sample runs for this website"
+        description="Sample runs are illustrative data tied to the Journey Atlas demo websites and aren't available for websites you've added yet."
+      />
+    );
+  }
 
   return (
     <>

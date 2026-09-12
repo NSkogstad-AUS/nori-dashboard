@@ -36,7 +36,12 @@ function formatRelativeDate(iso: string): string {
 export default function HomePage() {
   const router = useRouter();
   const { selectedWebsiteId } = useWorkspace();
-  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0]!;
+  // Phase 3: selectedWebsiteId now comes from real (DB-backed) websites via WorkspaceContext,
+  // but the journey/run data on this page is still fixture-only (out of this phase's scope —
+  // see plan/PHASE_3_PLAN.md section 1). A real website's id will not match any fixture website,
+  // so this intentionally does NOT fall back to the fixture array's first entry on a miss — that
+  // would silently attribute Acme's fixture journey data to a real, unrelated website.
+  const activeWebsite = websites.find((site) => site.id === selectedWebsiteId);
 
   const totalFlagged = runs.reduce((sum, run) => sum + findingsForRun(run.id).length, 0);
 
