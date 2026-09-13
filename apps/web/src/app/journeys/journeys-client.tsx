@@ -30,7 +30,12 @@ import {
   stageIndexForFinding,
 } from '../../lib/journey-derivations';
 import { validateWebsiteUrl } from '../../lib/validate-url';
-import { saveLocalRun, updateLocalRunState } from '../../lib/local-runs';
+import {
+  readLocalRuns,
+  saveLocalRun,
+  updateLocalRunState,
+  type LocalRun,
+} from '../../lib/local-runs';
 import type {
   Finding,
   Persona,
@@ -148,6 +153,7 @@ function JourneysContent() {
   const [runPending, setRunPending] = useState(false);
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelledRunId, setCancelledRunId] = useState<string | null>(null);
+  const [localRuns, setLocalRuns] = useState<LocalRun[]>([]);
   const { progress: runProgress, error: runProgressError } = useRunProgress(runId);
   const locallyCancelled = Boolean(runId && cancelledRunId === runId);
   const runRunning =
@@ -178,13 +184,26 @@ function JourneysContent() {
           : runProgress?.run.state === 'cancelled'
             ? 'Run cancelled'
             : 'Ready to begin';
+  const historyWebsiteId = runProgress?.run.websiteId ?? selectedWebsiteId;
+  const historyItems = localRuns
+    .filter((run) => run.websiteId === historyWebsiteId)
+    .map((run) => ({
+      id: run.runId,
+      label: `${new Date(run.createdAt).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })} · ${run.personaName} · ${run.state.replaceAll('_', ' ')}`,
+    }));
 
   useEffect(() => {
     if (!selectedPersonId) setSelectedPersonId(personas[0]?.id ?? null);
   }, [selectedPersonId, setSelectedPersonId]);
 
+  useEffect(() => setLocalRuns(readLocalRuns()), [runId]);
+
   useEffect(() => {
-    if (searchParams.get('from') !== 'home' || !runId) return;
+    const source = searchParams.get('from');
+    if ((source !== 'home' && source !== 'history') || !runId) return;
     const frame = window.requestAnimationFrame(() => {
       document.getElementById('journey-results')?.scrollIntoView({
         behavior: 'smooth',
@@ -206,6 +225,7 @@ function JourneysContent() {
   useEffect(() => {
     if (!runProgress) return;
     updateLocalRunState(runProgress.run.id, runProgress.run.state, runProgress.run.updatedAt);
+    setLocalRuns(readLocalRuns());
   }, [runProgress]);
 
   const toggleAttached = (id: string) => {
@@ -394,6 +414,12 @@ function JourneysContent() {
             onCancelRun={runId && runRunning ? () => void cancelRun() : undefined}
             cancelRunPending={cancellationRequested}
             statusLabel={runStatusLabel}
+            historyItems={historyItems}
+            activeHistoryId={runId}
+            onSelectHistory={(selectedRunId) => {
+              if (!selectedRunId) return;
+              router.push(`/journeys?runId=${selectedRunId}&from=history#journey-results`);
+            }}
           />
           {mode === 'live' ? (
             runId ? (

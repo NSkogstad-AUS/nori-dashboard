@@ -15,6 +15,9 @@ export interface JourneyViewSwitchProps {
   cancelRunPending?: boolean;
   /** Current journey status, displayed in the center of the control bar. */
   statusLabel?: string;
+  historyItems?: { id: string; label: string }[];
+  activeHistoryId?: string | null;
+  onSelectHistory?: (id: string) => void;
 }
 
 export function JourneyViewSwitch({
@@ -25,27 +28,48 @@ export function JourneyViewSwitch({
   onCancelRun,
   cancelRunPending = false,
   statusLabel = 'Ready to begin',
+  historyItems = [],
+  activeHistoryId = null,
+  onSelectHistory,
 }: JourneyViewSwitchProps) {
   return (
     <header className="view-switch">
-      <div className="view-switch-tabs" role="group" aria-label="Journey view">
-        <button
-          type="button"
-          className="pill"
-          aria-pressed={mode === 'overview'}
-          onClick={() => onChange('overview')}
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          className="pill"
-          aria-pressed={mode === 'live'}
-          onClick={() => onChange('live')}
-        >
-          <span className="live-view-dot" aria-hidden="true" />
-          Live view
-        </button>
+      <div className="view-switch-leading">
+        <div className="view-switch-tabs" role="group" aria-label="Journey view">
+          <button
+            type="button"
+            className="pill"
+            aria-pressed={mode === 'overview'}
+            onClick={() => onChange('overview')}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className="pill"
+            aria-pressed={mode === 'live'}
+            onClick={() => onChange('live')}
+          >
+            <span className="live-view-dot" aria-hidden="true" />
+            Live view
+          </button>
+        </div>
+        {historyItems.length > 0 && onSelectHistory ? (
+          <label className="journey-history-select">
+            <span className="sr-only">Open a previous journey</span>
+            <select
+              value={activeHistoryId ?? ''}
+              onChange={(event) => onSelectHistory(event.target.value)}
+            >
+              <option value="">Journey history</option>
+              {historyItems.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <span className="view-switch-status" aria-live="polite">
         <i aria-hidden="true" />

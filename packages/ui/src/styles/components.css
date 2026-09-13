@@ -778,6 +778,39 @@ main {
   background: #f7f5f0;
 }
 
+.view-switch-leading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.journey-history-select {
+  display: block;
+  min-width: 0;
+}
+
+.journey-history-select select {
+  width: min(230px, 21vw);
+  min-height: 42px;
+  padding: 8px 34px 8px 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.journey-history-select select:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--coral) 55%, transparent);
+  outline-offset: 2px;
+}
+
 .view-switch-status {
   position: absolute;
   left: 50%;
@@ -917,6 +950,16 @@ main {
 
   .view-switch-status {
     display: none;
+  }
+
+  .view-switch-leading {
+    gap: 6px;
+  }
+
+  .journey-history-select select {
+    width: min(150px, 36vw);
+    min-height: 36px;
+    padding: 7px 26px 7px 9px;
   }
 
   .journey-experience .view-switch .pill.begin-run {
