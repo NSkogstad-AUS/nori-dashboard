@@ -930,6 +930,9 @@ function humanizeFailureMessage(message: string | null): string {
   if (message.includes('Persona AI is not configured')) {
     return 'The AI model is not configured for this worker';
   }
+  if (message.includes('model repeated')) {
+    return 'The persona could not make progress with its current action';
+  }
   const originMatch = message.match(/origin_not_allowlisted:(https?:\/\/[^\s]+)/);
   if (originMatch?.[1]) {
     try {
@@ -953,6 +956,9 @@ function failureRecoveryMessage(message: string | null): string {
     return 'Configure the AI worker, then start a new run';
   }
   if (message?.includes('timed_out')) return 'Increase the run limit, then try again';
+  if (message?.includes('model repeated')) {
+    return 'Continue from the last page and try a different action';
+  }
   if (message?.includes('origin_not_allowlisted')) {
     return 'Check the target website, then start a new run';
   }
@@ -980,10 +986,13 @@ function LiveRunView({
   progress: RunProgressResponse | null;
   error: string | null;
 }) {
+  const router = useRouter();
   const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
   const [followLive, setFollowLive] = useState(true);
   const [unavailableArtifactId, setUnavailableArtifactId] = useState<string | null>(null);
+  const [continuePending, setContinuePending] = useState(false);
+  const [continueError, setContinueError] = useState<string | null>(null);
 
   const sessionDetail = progress?.sessions[selectedSessionIndex] ?? progress?.sessions[0];
   const frames = useMemo<LiveFrame[]>(
@@ -1037,6 +1046,50 @@ function LiveRunView({
     setSelectedFrameIndex(index);
     setFollowLive(index === frames.length - 1);
     setUnavailableArtifactId(null);
+  };
+
+  const continueJourney = async () => {
+    if (!progress || !sessionDetail || continuePending) return;
+    setContinuePending(true);
+    setContinueError(null);
+    const lastStep = sessionDetail.steps.at(-1);
+    const continuationUrl = lastStep?.urlAfter ?? lastStep?.urlBefore ?? progress.run.url;
+    try {
+      const response = await fetch('/api/runs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          websiteId: progress.run.websiteId,
+          url: continuationUrl,
+          task: progress.run.task,
+          personaIds: [sessionDetail.persona.id],
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      if (!response.ok) {
+        const responseError: { message?: string } = await response.json().catch(() => ({}));
+        throw new Error(responseError.message ?? 'Could not continue the journey.');
+      }
+      const { runId: nextRunId }: { runId: string } = await response.json();
+      const now = new Date().toISOString();
+      saveLocalRun({
+        runId: nextRunId,
+        websiteId: progress.run.websiteId,
+        url: continuationUrl,
+        personaName: sessionDetail.persona.name,
+        state: 'queued',
+        createdAt: now,
+        updatedAt: now,
+      });
+      router.replace(`/journeys?runId=${nextRunId}&from=home#journey-results`);
+    } catch (continueFailure) {
+      setContinueError(
+        continueFailure instanceof Error
+          ? continueFailure.message
+          : 'Could not continue the journey.',
+      );
+      setContinuePending(false);
+    }
   };
 
   if (error) {
@@ -1249,6 +1302,15 @@ function LiveRunView({
             <div className="live-run-message is-error">
               <strong>Journey stopped</strong>
               <span>{humanizeFailureMessage(session.failureMessage)}</span>
+              <button
+                type="button"
+                className="continue-journey-button"
+                onClick={() => void continueJourney()}
+                disabled={continuePending}
+              >
+                {continuePending ? 'Continuing…' : 'Continue to next step →'}
+              </button>
+              {continueError ? <small role="alert">{continueError}</small> : null}
             </div>
           ) : session.state === 'completed' ? (
             <div className="live-run-message is-complete">

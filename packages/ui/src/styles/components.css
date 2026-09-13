@@ -2093,8 +2093,8 @@ main {
 }
 
 .website-card {
+  overflow: hidden;
   text-align: left;
-  padding: 28px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -2110,20 +2110,71 @@ main {
   transform: translateY(-2px);
 }
 
+.website-card-preview {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px),
+    var(--paper);
+  background-size: 24px 24px;
+}
+
+.website-card-preview iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+  pointer-events: none;
+}
+
+.website-card-preview > span {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 88%);
+  color: var(--muted);
+  font-size: 10px;
+  backdrop-filter: blur(8px);
+}
+
+.website-card-preview > span i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--clear);
+}
+
+.website-card-open {
+  display: block;
+  width: 100%;
+  padding: 24px;
+  text-align: left;
+}
+
 .website-card:active {
   transform: translateY(0) scale(0.99);
 }
 
-.website-card h2 {
+.website-card-open h2 {
   margin: 20px 0 8px;
 }
 
-.website-card p {
+.website-card-open p {
   font-size: var(--text-xs);
   color: var(--muted);
 }
 
-.website-card footer {
+.website-card-open footer {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -3403,6 +3454,35 @@ form > .pill {
 
 .live-run-message.is-complete strong {
   color: var(--clear);
+}
+
+.continue-journey-button {
+  align-self: flex-start;
+  margin-top: 8px;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, var(--signal) 30%, var(--line));
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+  transition:
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.continue-journey-button:hover:not(:disabled) {
+  border-color: var(--signal);
+  transform: translateY(-1px);
+}
+
+.continue-journey-button:disabled {
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.live-run-message small[role='alert'] {
+  color: var(--signal);
 }
 
 @keyframes live-frame-in {

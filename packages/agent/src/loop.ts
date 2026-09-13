@@ -49,10 +49,11 @@ function actionSignature(action: BrowserAction, url: string): string {
 
 export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentLoopResult> {
   const history: ActionHistoryItem[] = [];
-  const signatures = new Map<string, number>();
   const evidenceStepIds: string[] = [];
   const usage: ModelUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
   let lastScreenshotUrl: string | null = null;
+  let previousSignature: string | null = null;
+  let consecutiveRepeats = 0;
 
   for (let actionCount = 0; actionCount < options.maxActions; actionCount += 1) {
     options.signal?.throwIfAborted();
@@ -89,11 +90,11 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
     }
 
     const signature = actionSignature(selection.decision.action, observation.url);
-    const repeats = (signatures.get(signature) ?? 0) + 1;
-    signatures.set(signature, repeats);
-    if (repeats >= 3) {
+    consecutiveRepeats = signature === previousSignature ? consecutiveRepeats + 1 : 1;
+    previousSignature = signature;
+    if (consecutiveRepeats >= 3) {
       throw new AgentRepeatedActionError(
-        `model repeated the same action three times: ${signature}`,
+        `model repeated ${selection.decision.action.kind} three times without page progress`,
       );
     }
 

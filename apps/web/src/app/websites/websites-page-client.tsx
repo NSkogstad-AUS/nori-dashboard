@@ -73,26 +73,41 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
           const siteRuns = localRuns.filter((run) => run.websiteId === site.id);
           const latestRun = siteRuns[0];
           return (
-            <button
-              key={site.id}
-              type="button"
-              className="website-card"
-              onClick={() => openJourney(site)}
-            >
-              <span className={`site-avatar ${colorClass}`}>
-                {site.displayName[0]?.toUpperCase() ?? '?'}
-              </span>
-              <h2>{site.displayName}</h2>
-              <p>{new URL(site.origin).hostname}</p>
-              <footer>
+            <article key={site.id} className="website-card">
+              <div className="website-card-preview">
+                <iframe
+                  src={site.origin}
+                  title={`Live preview of ${site.displayName}`}
+                  loading="lazy"
+                  tabIndex={-1}
+                  sandbox="allow-scripts allow-same-origin allow-forms"
+                  referrerPolicy="no-referrer"
+                />
                 <span>
-                  {latestRun
-                    ? `${siteRuns.length} saved ${siteRuns.length === 1 ? 'journey' : 'journeys'} · ${runStateLabel(latestRun.state)}`
-                    : 'No saved journeys'}
+                  <i aria-hidden="true" />
+                  Live preview
                 </span>
-                <span>{latestRun ? 'Open latest journey ↗' : 'Start a journey ↗'}</span>
-              </footer>
-            </button>
+              </div>
+              <button
+                type="button"
+                className="website-card-open"
+                onClick={() => openJourney(site)}
+              >
+                <span className={`site-avatar ${colorClass}`}>
+                  {site.displayName[0]?.toUpperCase() ?? '?'}
+                </span>
+                <h2>{site.displayName}</h2>
+                <p>{new URL(site.origin).hostname}</p>
+                <footer>
+                  <span>
+                    {latestRun
+                      ? `${siteRuns.length} saved ${siteRuns.length === 1 ? 'journey' : 'journeys'} · ${runStateLabel(latestRun.state)}`
+                      : 'No saved journeys'}
+                  </span>
+                  <span>{latestRun ? 'Open latest journey ↗' : 'Start a journey ↗'}</span>
+                </footer>
+              </button>
+            </article>
           );
         })}
       </div>
