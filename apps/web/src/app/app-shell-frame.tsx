@@ -24,11 +24,13 @@ import { useNewRunDialog } from '../context/new-run-dialog-context';
 const NAV_ITEMS: { href: string; label: string; icon: string }[] = [
   { href: '/', label: 'Home', icon: 'home' },
   { href: '/journeys', label: 'Journey', icon: 'journeys' },
+  { href: '/demo', label: 'Demo', icon: 'demo' },
 ];
 
 const SECTION_LABELS: Record<string, string> = {
   '/': 'Home',
   '/journeys': 'Journey',
+  '/demo': 'Demo',
   '/runs': 'Runs',
   '/websites': 'Websites',
 };
@@ -36,6 +38,7 @@ const SECTION_LABELS: Record<string, string> = {
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Your websites',
   '/journeys': 'New journey',
+  '/demo': 'Product walkthrough',
   '/runs': 'Your runs',
   '/websites': 'Your websites',
 };

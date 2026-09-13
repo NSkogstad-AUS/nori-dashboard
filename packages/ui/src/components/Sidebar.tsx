@@ -58,6 +58,14 @@ function SidebarNavIcon({ name }: { name: string }) {
       </svg>
     );
   }
+  if (name === 'demo') {
+    return (
+      <svg {...iconProps}>
+        <rect x="3.5" y="5" width="17" height="14" rx="2" />
+        <path d="m10 9 5 3-5 3V9Z" fill="currentColor" stroke="none" />
+      </svg>
+    );
+  }
   return (
     <svg {...iconProps}>
       <circle cx="12" cy="12" r="9" />

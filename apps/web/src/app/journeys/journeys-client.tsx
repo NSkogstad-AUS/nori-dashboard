@@ -1669,17 +1669,11 @@ function JourneySummarySection({
             <ul className="journey-summary-observations">
               {observedSteps.map((step, index) => (
                 <li key={step.id}>
-                  <details>
-                    <summary>
-                      <span>Observation {String(index + 1).padStart(2, '0')}</span>
-                      <i aria-hidden="true" />
-                    </summary>
-                    <div className="journey-observation-body">
-                      <div>
-                        <p>{step.observation}</p>
-                      </div>
-                    </div>
-                  </details>
+                  <ObservationDisclosure
+                    id={step.id}
+                    index={index + 1}
+                    observation={step.observation ?? ''}
+                  />
                 </li>
               ))}
             </ul>
@@ -1702,6 +1696,39 @@ function JourneySummarySection({
         </article>
       </div>
     </section>
+  );
+}
+
+function ObservationDisclosure({
+  id,
+  index,
+  observation,
+}: {
+  id: string;
+  index: number;
+  observation: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const contentId = `journey-observation-${id}`;
+
+  return (
+    <div className={`journey-observation${expanded ? ' is-expanded' : ''}`}>
+      <button
+        type="button"
+        className="journey-observation-toggle"
+        aria-expanded={expanded}
+        aria-controls={contentId}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        <span>Observation {String(index).padStart(2, '0')}</span>
+        <i aria-hidden="true" />
+      </button>
+      <div id={contentId} className="journey-observation-body">
+        <div>
+          <p>{observation}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
