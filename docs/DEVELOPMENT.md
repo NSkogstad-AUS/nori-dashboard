@@ -32,8 +32,12 @@ In separate terminals:
 
 ```bash
 npm run dev:web     # apps/web — Next.js dashboard, http://localhost:3000
-npm run dev:worker  # apps/worker — health endpoint plus the database job-claim loop
+npm run dev:worker  # persona AI plus the database job-claim loop
 ```
+
+Dashboard-created runs always use the persona AI. `WORKER_AGENT_MODE` only changes which persona
+the fixture-seeding command creates; it does not switch normal website runs back to the fixed
+fixture script. Put `ANTHROPIC_API_KEY` in the root `.env`; the worker loads that file at startup.
 
 To exercise the Phase 4 deterministic browser job locally, install Chromium once and use three
 terminals. Fixture mode is explicit because it permits the worker to reach the owned local site;

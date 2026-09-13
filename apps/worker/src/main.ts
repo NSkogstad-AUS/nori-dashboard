@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { pathToFileURL } from 'node:url';
+import { loadEnvFile } from 'node:process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   claimNextJob,
   cancelJob,
@@ -32,13 +33,21 @@ import {
   SessionCancelledError,
 } from './run-session.js';
 
+// Next loads apps/web/.env.local itself, but the standalone Node worker does not. Load the shared
+// repository .env without overriding variables already supplied by the process or deployment.
+try {
+  loadEnvFile(fileURLToPath(new URL('../../../.env', import.meta.url)));
+} catch (error) {
+  if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+}
+
 // Phase 4 job-claim loop (see plan/PHASE_4_PLAN.md section 4.4) — replaces the Phase 1 health-
 // check skeleton. Polls the jobs table (packages/db/src/migrations/002_queue.sql) for leasable
 // persona-session jobs, claims one via SELECT ... FOR UPDATE SKIP LOCKED
 // (packages/db/src/queries/jobs.ts), runs a fixed deterministic browser script against it
-// (run-session.ts), and records the outcome. Phase 5 optionally supplies the bounded Anthropic
-// action model when WORKER_AGENT_MODE is explicit; the fixed Phase 4 script remains available for
-// deterministic regression tests.
+// (run-session.ts), and records the outcome. Normal persona jobs use the bounded Anthropic action
+// model whenever its API key is configured. The fixed Phase 4 script is reserved for the explicit
+// system fixture persona so it can never leak into a real website run.
 
 const PORT = Number(process.env.PORT ?? 8081);
 const WORKER_ID = process.env.WORKER_ID ?? `worker-${randomUUID().slice(0, 8)}`;
@@ -129,8 +138,8 @@ export async function processJob(
     );
     return;
   }
-  const persona = options.model ? await getPersonaById(session.personaId) : null;
-  if (options.model && !persona) {
+  const persona = await getPersonaById(session.personaId);
+  if (!persona) {
     const message = `persona not found (personaId=${session.personaId})`;
     await recordSessionFailure(session.id, 'infrastructure_failure', message);
     await updateSessionState(session.id, session.state, 'failed');
@@ -140,14 +149,28 @@ export async function processJob(
   }
 
   const fixtureMode = options.allowPrivateTargets ?? process.env.WORKER_FIXTURE_MODE === 'true';
+  const isFixedFixturePersona = persona.name === 'Phase 4 Fixture Runner';
+  const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  const model =
+    options.model ??
+    (!isFixedFixturePersona && hasAnthropicKey ? new AnthropicActionModel() : undefined);
   // The Phase 4 fixed script is hard-coded to the fixture site's DOM (see run-session.ts's
   // runFixedSessionScript) — it must never run against a real, non-fixture target. A real,
   // model-driven session has no such constraint: navigationOptions.allowPrivateTargets below
   // already rejects private/internal targets by default (fixtureMode is false unless explicitly
   // set), so a model-driven run against a real public website is safe to proceed without this
   // gate. Only the fixed-script path needs to be refused outside fixture mode.
-  if (!options.model && !fixtureMode) {
+  if (!model && isFixedFixturePersona && !fixtureMode) {
     const message = 'Phase 4 deterministic actions are disabled outside explicit fixture mode';
+    await updateSessionState(session.id, session.state, 'failed');
+    await updateRunState(run.id, run.state, 'failed');
+    await failJob(job.id, message);
+    return;
+  }
+  if (!model && !isFixedFixturePersona) {
+    const message =
+      'Persona AI is not configured: set ANTHROPIC_API_KEY before starting the worker';
+    await recordSessionFailure(session.id, 'infrastructure_failure', message);
     await updateSessionState(session.id, session.state, 'failed');
     await updateRunState(run.id, run.state, 'failed');
     await failJob(job.id, message);
@@ -185,12 +208,12 @@ export async function processJob(
         (await getRunCancellationState(run.id)) === 'cancel_requested',
     };
 
-    if (options.model && persona) {
+    if (model) {
       const result = await runPersonaAgentSession({
         run,
         session,
         persona,
-        model: options.model,
+        model,
         navigationOptions,
         ...lifecycleOptions,
       });
@@ -200,9 +223,9 @@ export async function processJob(
         outcome: result.outcome,
         summary: result.summary,
         evidenceStepIds: result.evidenceStepIds,
-        modelProvider: options.model.provider,
-        modelId: options.model.modelId,
-        promptVersion: options.model.promptVersion,
+        modelProvider: model.provider,
+        modelId: model.modelId,
+        promptVersion: model.promptVersion,
         inputTokens: result.usage.inputTokens,
         outputTokens: result.usage.outputTokens,
         costUsd: result.usage.costUsd,
@@ -272,9 +295,7 @@ async function pollLoop() {
     try {
       const job = await claimNextJob(WORKER_ID);
       if (job) {
-        const model =
-          process.env.WORKER_AGENT_MODE === 'true' ? new AnthropicActionModel() : undefined;
-        currentJobPromise = processJob(job, { model });
+        currentJobPromise = processJob(job);
         await currentJobPromise;
         currentJobPromise = null;
       } else {

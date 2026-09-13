@@ -622,6 +622,12 @@ const STEP_ACTION_LABEL: Record<Step['action'], string> = {
 
 function stepSummary(step: Step): string {
   const verb = STEP_ACTION_LABEL[step.action];
+  if (
+    step.outcome === 'error' &&
+    (step.observation?.includes('subscribe button') || step.observation?.includes('#subscribe-btn'))
+  ) {
+    return 'The fixture action could not run on this website';
+  }
   if (step.outcome === 'blocked') {
     return `${verb} — blocked${step.observation ? `: ${step.observation}` : ''}`;
   }
@@ -749,10 +755,16 @@ function LiveRunTracker({ runId }: { runId: string }) {
       checkpoints = [report.summary, ...stage.checkpoints.slice(1)];
     }
     if (index === visualActiveIndex && failed) {
+      const isFixtureMismatch =
+        session.failureMessage?.includes("locator('#subscribe-btn')") ||
+        session.failureMessage?.includes('subscribe button');
+      const visibleRecordedSteps = isFixtureMismatch
+        ? recordedSteps.filter((step) => !step.includes('fixture action'))
+        : recordedSteps;
       checkpoints = [
-        ...recordedSteps.slice(-2),
+        ...visibleRecordedSteps.slice(-2),
         humanizeFailureMessage(session.failureMessage),
-        'Start a new run after checking the target URL',
+        failureRecoveryMessage(session.failureMessage),
       ].slice(-4);
     }
 
@@ -803,6 +815,12 @@ function LiveRunTracker({ runId }: { runId: string }) {
 
 function humanizeFailureMessage(message: string | null): string {
   if (!message) return 'The browser could not finish this journey';
+  if (message.includes("locator('#subscribe-btn')") || message.includes('subscribe button')) {
+    return 'This run used the fixture browser script instead of the persona AI';
+  }
+  if (message.includes('Persona AI is not configured')) {
+    return 'The AI model is not configured for this worker';
+  }
   const originMatch = message.match(/origin_not_allowlisted:(https?:\/\/[^\s]+)/);
   if (originMatch?.[1]) {
     try {
@@ -814,6 +832,22 @@ function humanizeFailureMessage(message: string | null): string {
   if (message.includes('authentication')) return 'The model connection needs to be checked';
   if (message.includes('timed_out')) return 'The journey reached its time limit';
   return message.replace(/^unsafe_target:/, '').replaceAll('_', ' ');
+}
+
+function failureRecoveryMessage(message: string | null): string {
+  if (
+    message?.includes("locator('#subscribe-btn')") ||
+    message?.includes('subscribe button') ||
+    message?.includes('Persona AI is not configured') ||
+    message?.includes('authentication')
+  ) {
+    return 'Configure the AI worker, then start a new run';
+  }
+  if (message?.includes('timed_out')) return 'Increase the run limit, then try again';
+  if (message?.includes('origin_not_allowlisted')) {
+    return 'Check the target website, then start a new run';
+  }
+  return 'Start a new run after checking the worker';
 }
 
 interface LiveViewProps {
