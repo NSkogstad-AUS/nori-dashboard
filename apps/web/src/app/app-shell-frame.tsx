@@ -22,43 +22,28 @@ import { useWorkspace } from '../context/workspace-context';
 import { useNewRunDialog } from '../context/new-run-dialog-context';
 
 const NAV_ITEMS: { href: string; label: string; icon: string }[] = [
-  { href: '/', label: 'Home', icon: '⌂' },
-  { href: '/journeys', label: 'Journeys', icon: '⌘' },
-  { href: '/runs', label: 'Runs', icon: '▦' },
-  { href: '/websites', label: 'Websites', icon: '◫' },
+  { href: '/', label: 'Home', icon: 'home' },
+  { href: '/journeys', label: 'Journey', icon: 'journeys' },
 ];
 
 const SECTION_LABELS: Record<string, string> = {
-  '/': 'Overview',
-  '/journeys': 'Customer journeys',
+  '/': 'Home',
+  '/journeys': 'Journey',
   '/runs': 'Runs',
   '/websites': 'Websites',
 };
 
 const PAGE_TITLES: Record<string, string> = {
-  '/': 'A clearer picture.',
-  '/journeys': 'Customer journeys',
+  '/': 'Your websites',
+  '/journeys': 'New journey',
   '/runs': 'Your runs',
   '/websites': 'Your websites',
-};
-
-const COLOR_CLASS: Record<string, string> = {
-  peach: 'peach',
-  violet: 'violet',
-  blue: 'blue',
-};
-
-const SITE_MARKS: Record<string, { mark: string; colorClass: string }> = {
-  Acme: { mark: 'A', colorClass: 'peach' },
-  Forma: { mark: 'F', colorClass: 'violet' },
-  Orbit: { mark: 'O', colorClass: 'blue' },
 };
 
 export function AppShellFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { websites, selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed } =
-    useWorkspace();
+  const { websites, selectedWebsiteId, collapsed, setCollapsed } = useWorkspace();
   const { open: newRunOpen, closeDialog: closeNewRun } = useNewRunDialog();
 
   const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0];
@@ -67,20 +52,6 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
     ...item,
     active: pathname === item.href,
   }));
-
-  const siteItems = websites.map((site) => {
-    const marks = SITE_MARKS[site.displayName] ?? {
-      mark: site.displayName[0] ?? '?',
-      colorClass: 'blue',
-    };
-    return {
-      id: site.id,
-      name: site.displayName,
-      mark: marks.mark,
-      colorClass: COLOR_CLASS[marks.colorClass] ?? 'blue',
-      active: site.id === selectedWebsiteId,
-    };
-  });
 
   // Real persona ids, fetched from the DB rather than apps/web/src/fixtures — the fixture
   // personas' ids are crypto.randomUUID() values generated fresh per process, so they never
@@ -160,14 +131,13 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
         sidebar={
           <Sidebar
             navItems={navItems}
-            siteItems={siteItems}
             collapsed={collapsed}
             onToggleCollapsed={() => setCollapsed(!collapsed)}
-            onSelectSite={(id) => {
-              setSelectedWebsiteId(id);
-              router.push('/runs');
-            }}
-            renderNavLink={(item, content) => <Link href={item.href}>{content}</Link>}
+            renderNavLink={(item, content) => (
+              <Link href={item.href} aria-current={item.active ? 'page' : undefined}>
+                {content}
+              </Link>
+            )}
           />
         }
         header={
@@ -176,7 +146,11 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
             sectionLabel={sectionLabel}
             title={title}
             showHeading={pathname !== '/journeys'}
-            note="The whole experience, connected."
+            note={
+              pathname === '/'
+                ? 'Track a website or choose one to start a new journey.'
+                : 'See the whole experience, connected.'
+            }
           />
         }
       >

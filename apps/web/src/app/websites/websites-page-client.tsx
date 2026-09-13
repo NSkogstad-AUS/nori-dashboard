@@ -69,8 +69,11 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
 
   return (
     <>
-      <div className="view-intro">
-        <p>Websites you track become available for sample runs.</p>
+      <div className="view-intro home-sites-intro">
+        <div>
+          <strong>Tracked websites</strong>
+          <p>Choose a website to create a new journey.</p>
+        </div>
         <button type="button" className="dark pill" onClick={() => setDialogOpen(true)}>
           + Add website
         </button>
@@ -85,7 +88,7 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
               className="website-card"
               onClick={() => {
                 setSelectedWebsiteId(site.id);
-                router.push('/runs');
+                router.push('/journeys');
               }}
             >
               <span className={`site-avatar ${colorClass}`}>
@@ -94,14 +97,18 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
               <h2>{site.displayName}</h2>
               <p>{new URL(site.origin).hostname}</p>
               <footer>
-                <span>0 sample runs</span>
-                <span>Open website workspace ↗</span>
+                <span>Ready to test</span>
+                <span>Start a journey ↗</span>
               </footer>
             </button>
           );
         })}
       </div>
-      <NewWebsiteDialog open={dialogOpen} onClose={() => setDialogOpen(false)} onSubmit={handleSubmit} />
+      <NewWebsiteDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={handleSubmit}
+      />
     </>
   );
 }

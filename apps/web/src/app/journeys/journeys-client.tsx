@@ -130,12 +130,14 @@ function JourneysContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const runId = searchParams.get('runId');
-  const { websites, addWebsite } = useWorkspace();
+  const { websites, selectedWebsiteId, addWebsite } = useWorkspace();
   const { openDialog: openNewRun } = useNewRunDialog();
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState(
+    () => websites.find((website) => website.id === selectedWebsiteId)?.origin ?? '',
+  );
   const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
     () => new Set(personas.map((persona) => persona.id)),
   );

@@ -20,7 +20,7 @@ export { AppShell } from './components/AppShell';
 export type { AppShellProps } from './components/AppShell';
 
 export { Sidebar } from './components/Sidebar';
-export type { SidebarProps, SidebarNavItem, SidebarSiteItem } from './components/Sidebar';
+export type { SidebarProps, SidebarNavItem } from './components/Sidebar';
 
 export { WebsiteSwitcher } from './components/WebsiteSwitcher';
 export type { WebsiteSwitcherProps, WebsiteOption } from './components/WebsiteSwitcher';
