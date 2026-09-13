@@ -3646,7 +3646,9 @@ form > .pill {
 
 .journey-summary-step {
   align-items: center;
-  justify-content: center;
+  /* Summary content can exceed one snap viewport. Start it at the top so its own scrollbar
+     never opens with the heading clipped above a vertically centred flex child. */
+  justify-content: flex-start;
   padding: 36px 0 44px;
   background: #fff;
 }
@@ -3656,6 +3658,7 @@ form > .pill {
 }
 
 .journey-summary-step > .journey-summary-report {
+  flex: 0 0 auto;
   width: 90%;
 }
 

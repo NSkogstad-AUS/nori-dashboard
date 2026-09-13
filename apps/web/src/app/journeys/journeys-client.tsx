@@ -153,6 +153,8 @@ function JourneysContent() {
   const [summaryVisible, setSummaryVisible] = useState(false);
   const [finishedManually, setFinishedManually] = useState(false);
   const [localRuns, setLocalRuns] = useState<LocalRun[]>([]);
+  const journeyStepsRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
   const { progress: runProgress, error: runProgressError } = useRunProgress(runId);
   const locallyCancelled = Boolean(runId && cancelledRunId === runId);
   const runRunning =
@@ -207,15 +209,36 @@ function JourneysContent() {
     setFinishError(null);
   }, [runId]);
 
+  const scrollToSummary = useCallback(() => {
+    const container = journeyStepsRef.current;
+    const summary = summaryRef.current;
+    if (!container || !summary) return;
+
+    // Scroll only the journey's snap container. scrollIntoView() can also move the page and
+    // leave the summary between snap points when the section has just been mounted.
+    const containerTop = container.getBoundingClientRect().top;
+    const summaryTop = summary.getBoundingClientRect().top;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    summary.scrollTop = 0;
+    container.scrollTo({
+      top: container.scrollTop + summaryTop - containerTop,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    });
+    summary.focus({ preventScroll: true });
+  }, []);
+
   useEffect(() => {
     if (!summaryVisible) return;
-    const frame = window.requestAnimationFrame(() => {
-      const summary = document.getElementById('journey-summary');
-      summary?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      summary?.focus({ preventScroll: true });
+    let secondFrame = 0;
+    const firstFrame = window.requestAnimationFrame(() => {
+      // Give scroll snap one layout frame to register the newly mounted fourth step.
+      secondFrame = window.requestAnimationFrame(scrollToSummary);
     });
-    return () => window.cancelAnimationFrame(frame);
-  }, [summaryVisible]);
+    return () => {
+      window.cancelAnimationFrame(firstFrame);
+      if (secondFrame) window.cancelAnimationFrame(secondFrame);
+    };
+  }, [summaryVisible, scrollToSummary]);
 
   useEffect(() => {
     const source = searchParams.get('from');
@@ -407,10 +430,7 @@ function JourneysContent() {
 
   const finishJourney = useCallback(async () => {
     if (summaryVisible) {
-      document.getElementById('journey-summary')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'start',
-      });
+      scrollToSummary();
       return;
     }
     if (!runProgress || finishPending) return;
@@ -430,7 +450,7 @@ function JourneysContent() {
     } finally {
       setFinishPending(false);
     }
-  }, [summaryVisible, runProgress, finishPending, runRunning, cancelRun]);
+  }, [summaryVisible, runProgress, finishPending, runRunning, cancelRun, scrollToSummary]);
 
   return (
     <>
@@ -439,7 +459,7 @@ function JourneysContent() {
           past a step's threshold jumps cleanly to the next one; there is no partial/in-between
           resting state, unlike a scrubbed scroll animation. Native browser behavior, no JS
           scroll-position tracking involved. */}
-      <div className="journey-steps">
+      <div ref={journeyStepsRef} className="journey-steps">
         <section className="journey-step journey-website" aria-label="Website">
           <div className="journey-website-input">
             <span className="journey-website-icon" aria-hidden="true">
@@ -527,7 +547,12 @@ function JourneysContent() {
           )}
         </div>
         {summaryVisible && runProgress ? (
-          <div id="journey-summary" className="journey-step journey-summary-step" tabIndex={-1}>
+          <div
+            ref={summaryRef}
+            id="journey-summary"
+            className="journey-step journey-summary-step"
+            tabIndex={-1}
+          >
             <JourneySummarySection progress={runProgress} finishedManually={finishedManually} />
           </div>
         ) : null}
