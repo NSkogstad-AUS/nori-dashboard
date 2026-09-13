@@ -129,7 +129,9 @@ export async function POST(request: NextRequest) {
       return errorResponse({ code: 'unauthorized', message: error.message }, 401);
     }
     if (error instanceof WorkerCredentialHandoffError) {
-      console.error('POST /api/runs could not reach the worker credential endpoint');
+      console.error(
+        `POST /api/runs could not reach the worker credential endpoint: ${error.message}`,
+      );
       return errorResponse(
         {
           code: 'internal_error',

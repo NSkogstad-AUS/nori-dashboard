@@ -145,6 +145,7 @@ function JourneysContent() {
     () => new Set(personas.map((persona) => persona.id)),
   );
   const [runPending, setRunPending] = useState(false);
+  const [beginError, setBeginError] = useState<string | null>(null);
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelledRunId, setCancelledRunId] = useState<string | null>(null);
   const [localRuns, setLocalRuns] = useState<LocalRun[]>([]);
@@ -163,7 +164,7 @@ function JourneysContent() {
       ));
   const cancellationRequested =
     cancelPending || runProgress?.run.cancelRequestState === 'cancel_requested';
-  const runStatusLabel = locallyCancelled
+  const persistedRunStatusLabel = locallyCancelled
     ? 'Run cancelled'
     : cancellationRequested
       ? 'Cancelling…'
@@ -178,6 +179,7 @@ function JourneysContent() {
               : runProgress?.run.state === 'cancelled'
                 ? 'Run cancelled'
                 : 'Ready to begin';
+  const runStatusLabel = beginError ?? persistedRunStatusLabel;
   const historyWebsiteId = runProgress?.run.websiteId ?? selectedWebsiteId;
   const historyItems = localRuns
     .filter((run) => run.websiteId === historyWebsiteId)
@@ -279,12 +281,15 @@ function JourneysContent() {
     }
     const suppliedApiKey = apiKey.trim();
     if (!suppliedApiKey) {
-      announce('Enter your Anthropic API key to begin the run.');
+      const message = 'Enter your Anthropic API key to begin the run.';
+      setBeginError(message);
+      announce(message);
       document.getElementById('journey-api-key')?.focus();
       return;
     }
 
     setPlaying(false);
+    setBeginError(null);
     setRunPending(true);
     try {
       const personasResponse = await fetch('/api/personas');
@@ -316,7 +321,9 @@ function JourneysContent() {
       });
       if (!response.ok) {
         const error: { message?: string } = await response.json().catch(() => ({}));
-        announce(error.message ?? 'Could not start the run.');
+        const message = error.message ?? 'Could not start the run.';
+        setBeginError(message);
+        announce(message);
         return;
       }
       const { runId: newRunId }: { runId: string } = await response.json();
@@ -337,7 +344,9 @@ function JourneysContent() {
       router.push(`/journeys?runId=${newRunId}`);
     } catch (error) {
       console.error('Failed to start run', error);
-      announce('Could not start the run.');
+      const message = 'Could not start the run.';
+      setBeginError(message);
+      announce(message);
     } finally {
       setRunPending(false);
     }
@@ -448,7 +457,14 @@ function JourneysContent() {
           />
           {mode === 'live' ? (
             runId ? (
-              <LiveRunView progress={runProgress} error={runProgressError} apiKey={apiKey} />
+              <LiveRunView
+                progress={runProgress}
+                error={runProgressError}
+                apiKey={apiKey}
+                onApiKeyChange={setApiKey}
+                onCancelRun={() => void cancelRun()}
+                cancelPending={cancellationRequested}
+              />
             ) : (
               <LiveView onOpenFinding={openFinding} />
             )
@@ -973,6 +989,9 @@ function humanizeFailureMessage(message: string | null): string {
   if (message.includes('Persona AI is not configured')) {
     return 'The AI model is not configured for this worker';
   }
+  if (isModelAuthenticationFailure(message)) {
+    return 'Anthropic rejected this API key. Enter a valid Anthropic key and continue.';
+  }
   if (message.includes('model repeated')) {
     return 'The persona could not make progress with its current action';
   }
@@ -984,19 +1003,31 @@ function humanizeFailureMessage(message: string | null): string {
       return 'A navigation outside the selected website was blocked';
     }
   }
-  if (message.includes('authentication')) return 'The model connection needs to be checked';
   if (message.includes('timed_out')) return 'The journey reached its time limit';
   return message.replace(/^unsafe_target:/, '').replaceAll('_', ' ');
+}
+
+function isModelAuthenticationFailure(message: string | null): boolean {
+  if (!message) return false;
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('authentication') ||
+    normalized.includes('invalid api key') ||
+    normalized.includes('x-api-key') ||
+    normalized.includes('401')
+  );
 }
 
 function failureRecoveryMessage(message: string | null): string {
   if (
     message?.includes("locator('#subscribe-btn')") ||
     message?.includes('subscribe button') ||
-    message?.includes('Persona AI is not configured') ||
-    message?.includes('authentication')
+    message?.includes('Persona AI is not configured')
   ) {
     return 'Configure the AI worker, then start a new run';
+  }
+  if (isModelAuthenticationFailure(message)) {
+    return 'Replace the Anthropic API key, then continue from the last page';
   }
   if (message?.includes('timed_out')) return 'Increase the run limit, then try again';
   if (message?.includes('model repeated')) {
@@ -1026,10 +1057,16 @@ function LiveRunView({
   progress,
   error,
   apiKey,
+  onApiKeyChange,
+  onCancelRun,
+  cancelPending,
 }: {
   progress: RunProgressResponse | null;
   error: string | null;
   apiKey: string;
+  onApiKeyChange: (value: string) => void;
+  onCancelRun: () => void;
+  cancelPending: boolean;
 }) {
   const router = useRouter();
   const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
@@ -1038,6 +1075,7 @@ function LiveRunView({
   const [unavailableArtifactId, setUnavailableArtifactId] = useState<string | null>(null);
   const [continuePending, setContinuePending] = useState(false);
   const [continueError, setContinueError] = useState<string | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
 
   const sessionDetail = progress?.sessions[selectedSessionIndex] ?? progress?.sessions[0];
   const frames = useMemo<LiveFrame[]>(
@@ -1059,6 +1097,13 @@ function LiveRunView({
   const session = sessionDetail?.session;
   const latest = frameIndex === frames.length - 1;
   const isActive = session ? !TERMINAL_SESSION_STATES.includes(session.state) : false;
+  const lastActivityTimestamp = Date.parse(
+    sessionDetail?.steps.at(-1)?.createdAt ?? session?.createdAt ?? '',
+  );
+  const secondsSinceAction = Number.isFinite(lastActivityTimestamp)
+    ? Math.max(0, Math.floor((clock - lastActivityTimestamp) / 1000))
+    : 0;
+  const appearsStalled = isActive && secondsSinceAction >= 25;
   const currentUrl = currentStep?.urlAfter ?? currentStep?.urlBefore ?? progress?.run.url;
   const viewportWidth = session?.device.viewportWidth ?? 1280;
   const viewportHeight = session?.device.viewportHeight ?? 800;
@@ -1086,6 +1131,12 @@ function LiveRunView({
     '--cursor-x': Math.max(1, Math.min(96, cursorX)),
     '--cursor-y': Math.max(1, Math.min(94, cursorY)),
   } as React.CSSProperties;
+
+  useEffect(() => {
+    if (!isActive) return;
+    const interval = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [isActive]);
 
   const selectFrame = (index: number) => {
     setSelectedFrameIndex(index);
@@ -1349,17 +1400,55 @@ function LiveRunView({
               );
             })}
           </ol>
-          {session.state === 'failed' ? (
-            <div className="live-run-message is-error">
-              <strong>Journey stopped</strong>
-              <span>{humanizeFailureMessage(session.failureMessage)}</span>
+          {appearsStalled ? (
+            <div className="live-run-message is-waiting" role="status">
+              <strong>No new action for {secondsSinceAction}s</strong>
+              <span>The model may still respond, or you can stop safely and continue later.</span>
+              <button
+                type="button"
+                className="continue-journey-button"
+                onClick={onCancelRun}
+                disabled={cancelPending}
+              >
+                {cancelPending ? 'Stopping…' : 'Stop this run'}
+              </button>
+            </div>
+          ) : null}
+          {session.state === 'failed' || session.state === 'cancelled' ? (
+            <div
+              className={`live-run-message ${session.state === 'failed' ? 'is-error' : 'is-cancelled'}`}
+            >
+              <strong>{session.state === 'failed' ? 'Journey stopped' : 'Run cancelled'}</strong>
+              <span>
+                {session.state === 'failed'
+                  ? humanizeFailureMessage(session.failureMessage)
+                  : 'You can continue from the last page without starting over.'}
+              </span>
+              {isModelAuthenticationFailure(session.failureMessage) || !apiKey.trim() ? (
+                <label className="live-retry-key">
+                  <span>Anthropic API key</span>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => onApiKeyChange(event.target.value)}
+                    placeholder="sk-ant-…"
+                    autoComplete="new-password"
+                    spellCheck={false}
+                  />
+                  <small>Used only for the continued run. Never saved.</small>
+                </label>
+              ) : null}
               <button
                 type="button"
                 className="continue-journey-button"
                 onClick={() => void continueJourney()}
                 disabled={continuePending}
               >
-                {continuePending ? 'Continuing…' : 'Continue to next step →'}
+                {continuePending
+                  ? 'Continuing…'
+                  : session.state === 'cancelled'
+                    ? 'Continue from last page →'
+                    : 'Continue to next step →'}
               </button>
               {continueError ? <small role="alert">{continueError}</small> : null}
             </div>

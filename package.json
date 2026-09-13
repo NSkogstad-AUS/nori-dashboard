@@ -13,7 +13,9 @@
   },
   "scripts": {
     "setup": "bash scripts/setup.sh",
-    "dev:web": "npm run dev --workspace=apps/web",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "node scripts/dev.mjs",
+    "dev:web-only": "npm run dev --workspace=apps/web",
     "dev:worker": "npm run dev --workspace=apps/worker",
     "dev:fixture-site": "npm run dev --workspace=@nori/fixture-site",
     "build": "npm run build --workspaces --if-present",

@@ -3520,8 +3520,55 @@ form > .pill {
   color: var(--signal);
 }
 
+.live-run-message.is-waiting {
+  border-color: color-mix(in srgb, #9b6a24 28%, var(--line));
+  background: color-mix(in srgb, #f3dfbd 22%, #fff);
+}
+
+.live-run-message.is-waiting strong {
+  color: #76501d;
+}
+
+.live-run-message.is-cancelled strong {
+  color: var(--muted);
+}
+
 .live-run-message.is-complete strong {
   color: var(--clear);
+}
+
+.live-retry-key {
+  display: grid;
+  gap: 5px;
+  margin-top: 9px;
+}
+
+.live-retry-key > span {
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.live-retry-key input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--signal) 24%, var(--line));
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+}
+
+.live-retry-key input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--signal) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.live-retry-key small {
+  color: var(--muted);
+  font-size: 9px;
 }
 
 .continue-journey-button {
