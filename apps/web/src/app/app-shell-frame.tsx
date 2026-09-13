@@ -178,7 +178,6 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
             title={title}
             showHeading={pathname !== '/journeys'}
             note="The whole experience, connected."
-            onNewRun={openNewRun}
           />
         }
         floatingDock={

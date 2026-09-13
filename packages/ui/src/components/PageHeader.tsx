@@ -1,14 +1,11 @@
 // Ports prototype/app.js `render()`'s `<header class="workspace-header">` and `.page-heading`
-// blocks. See plan/PHASE_2_PLAN.md section 6 and section 8 (FixtureModeBadge usage).
-
-import { FixtureModeBadge } from './FixtureModeBadge';
+// blocks. See plan/PHASE_2_PLAN.md section 6.
 
 export interface PageHeaderProps {
   websiteName: string;
   sectionLabel: string;
   title: string;
   note: string;
-  onNewRun: () => void;
   showHeading?: boolean;
 }
 
@@ -17,7 +14,6 @@ export function PageHeader({
   sectionLabel,
   title,
   note,
-  onNewRun,
   showHeading = true,
 }: PageHeaderProps) {
   return (
@@ -26,12 +22,6 @@ export function PageHeader({
         <span>
           {websiteName} <span className="muted">/ {sectionLabel}</span>
         </span>
-        <div>
-          <FixtureModeBadge variant="badge" />
-          <button type="button" className="dark pill" onClick={onNewRun}>
-            ＋ New run
-          </button>
-        </div>
       </header>
       {showHeading && (
         <div className="page-heading">

@@ -7,15 +7,18 @@ export interface JourneyViewSwitchProps {
   onChange: (mode: 'overview' | 'live') => void;
   /** Starts a run. Omit to hide the action entirely. */
   onBeginRun?: () => void;
-  /** Replaces the action's label while the run is being created. */
-  beginRunPending?: boolean;
+  /** Replaces and disables the action while a run is active. */
+  beginRunRunning?: boolean;
+  /** Current journey status, displayed in the center of the control bar. */
+  statusLabel?: string;
 }
 
 export function JourneyViewSwitch({
   mode,
   onChange,
   onBeginRun,
-  beginRunPending = false,
+  beginRunRunning = false,
+  statusLabel = 'Ready to begin',
 }: JourneyViewSwitchProps) {
   return (
     <header className="view-switch">
@@ -38,15 +41,19 @@ export function JourneyViewSwitch({
           Live view
         </button>
       </div>
+      <span className="view-switch-status" aria-live="polite">
+        <i aria-hidden="true" />
+        {statusLabel}
+      </span>
       {onBeginRun ? (
         <button
           type="button"
           className="pill begin-run"
           onClick={onBeginRun}
-          disabled={beginRunPending}
+          disabled={beginRunRunning}
         >
-          {beginRunPending ? (
-            'Starting…'
+          {beginRunRunning ? (
+            'Running…'
           ) : (
             <>
               <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">

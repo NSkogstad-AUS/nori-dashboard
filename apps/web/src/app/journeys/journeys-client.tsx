@@ -119,7 +119,14 @@ export default function JourneysClient() {
 }
 
 function JourneysContent() {
-  const { mode, setMode, setPlaying, setCaptureMessage, selectedPersonId } = useJourneyView();
+  const {
+    mode,
+    setMode,
+    setPlaying,
+    setCaptureMessage,
+    selectedPersonId,
+    setSelectedPersonId,
+  } = useJourneyView();
   const searchParams = useSearchParams();
   const router = useRouter();
   const runId = searchParams.get('runId');
@@ -133,6 +140,32 @@ function JourneysContent() {
     () => new Set(personas.map((persona) => persona.id)),
   );
   const [runPending, setRunPending] = useState(false);
+  const { progress: runProgress, error: runProgressError } = useRunProgress(runId);
+  const runRunning =
+    runPending ||
+    Boolean(
+      runId &&
+        !runProgressError &&
+        (!runProgress ||
+          !['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(
+            runProgress.run.state,
+          )),
+    );
+  const runStatusLabel = runRunning
+    ? 'Running…'
+    : runProgress?.run.state === 'completed'
+      ? 'Journey complete'
+      : runProgress?.run.state === 'completed_with_errors'
+        ? 'Completed with issues'
+        : runProgress?.run.state === 'failed'
+          ? 'Run failed'
+          : runProgress?.run.state === 'cancelled'
+            ? 'Run cancelled'
+            : 'Ready to begin';
+
+  useEffect(() => {
+    if (!selectedPersonId) setSelectedPersonId(personas[0]?.id ?? null);
+  }, [selectedPersonId, setSelectedPersonId]);
 
   const toggleAttached = (id: string) => {
     const next = new Set(attachedPersonaIds);
@@ -285,16 +318,17 @@ function JourneysContent() {
             mode={mode}
             onChange={setMode}
             onBeginRun={() => void beginRun()}
-            beginRunPending={runPending}
+            beginRunRunning={runRunning}
+            statusLabel={runStatusLabel}
           />
           {mode === 'live' ? (
             runId ? (
-              <LiveRunView runId={runId} />
+              <LiveRunView progress={runProgress} error={runProgressError} />
             ) : (
               <LiveView onOpenFinding={openFinding} />
             )
           ) : runId ? (
-            <LiveRunTracker runId={runId} />
+            <LiveRunTracker progress={runProgress} error={runProgressError} />
           ) : (
             <OverviewAtlas />
           )}
@@ -396,8 +430,7 @@ function PersonaShelfSection({
   onOpenLibrary: () => void;
   attachedPersonaIds: Set<string>;
 }) {
-  const { mode, selectedPersonId, setSelectedPersonId, setPlaying, setCaptureMessage } =
-    useJourneyView();
+  const { selectedPersonId, setSelectedPersonId, setPlaying, setCaptureMessage } = useJourneyView();
 
   const people: PersonaShelfPerson[] = personas
     .filter((persona) => attachedPersonaIds.has(persona.id))
@@ -415,13 +448,7 @@ function PersonaShelfSection({
     });
 
   const handleSelect = (id: string) => {
-    // Mirrors prototype: in Live mode, clicking always selects (never deselects); in Overview,
-    // clicking the already-selected persona clears the selection.
-    if (mode === 'live') {
-      setSelectedPersonId(id);
-    } else {
-      setSelectedPersonId(selectedPersonId === id ? null : id);
-    }
+    setSelectedPersonId(id);
     setPlaying(false);
     setCaptureMessage('');
   };
@@ -430,7 +457,7 @@ function PersonaShelfSection({
     <PersonaShelf
       people={people}
       selectedPersonId={selectedPersonId}
-      selectionMode={mode === 'live' ? 'single' : 'toggle'}
+      selectionMode="single"
       onSelect={handleSelect}
       onOpenLibrary={onOpenLibrary}
     />
@@ -484,21 +511,13 @@ function personaForId(id: string | null): Persona {
 
 function PersonaProcessVisual({
   persona,
-  status,
-  statusTone,
 }: {
   persona: Persona;
-  status: string;
-  statusTone: 'active' | 'complete' | 'failed';
 }) {
   return (
     <aside className="process-persona" aria-label={`Selected persona: ${persona.name}`}>
       <div className="process-persona-photo">
         <img src={PERSONA_PHOTO_SRC[persona.name]} alt="" />
-        <span className={`process-persona-status is-${statusTone}`}>
-          <i aria-hidden="true" />
-          {status}
-        </span>
       </div>
       <div className="process-persona-copy">
         <span>Selected perspective</span>
@@ -513,11 +532,9 @@ function PersonaProcessVisual({
 function ProcessBoard({
   persona,
   stages,
-  statusLabel,
 }: {
   persona: Persona;
   stages: ProcessStageView[];
-  statusLabel: string;
 }) {
   const currentIndex = stages.findIndex(
     (stage) => stage.status === 'active' || stage.status === 'failed',
@@ -527,11 +544,6 @@ function ProcessBoard({
     0,
   );
   const activeIndex = currentIndex >= 0 ? currentIndex : lastCompletedIndex;
-  const statusTone = stages.some((stage) => stage.status === 'failed')
-    ? 'failed'
-    : stages.every((stage) => stage.status === 'complete')
-      ? 'complete'
-      : 'active';
   const columnVars = Object.fromEntries(
     stages.map((_, index) => [
       `--process-card-${index}`,
@@ -546,13 +558,9 @@ function ProcessBoard({
           <span className="process-kicker">AI journey progress</span>
           <h2>Following {persona.name}&rsquo;s path</h2>
         </div>
-        <span className={`process-board-status is-${statusTone}`}>
-          <i aria-hidden="true" />
-          {statusLabel}
-        </span>
       </header>
       <div className="process-board-layout">
-        <PersonaProcessVisual persona={persona} status={statusLabel} statusTone={statusTone} />
+        <PersonaProcessVisual persona={persona} />
         <div className="process-flow" style={columnVars}>
           {stages.map((stage) => (
             <article
@@ -603,7 +611,7 @@ function OverviewAtlas() {
     completedCheckpointCount: 0,
   }));
 
-  return <ProcessBoard persona={persona} stages={stages} statusLabel="Ready to begin" />;
+  return <ProcessBoard persona={persona} stages={stages} />;
 }
 
 // The persisted worker states map onto the first three visual phases. Terminal outcomes occupy
@@ -662,11 +670,17 @@ interface RunProgressResponse {
 
 const TERMINAL_SESSION_STATES: readonly SessionState[] = ['completed', 'failed', 'cancelled'];
 
-function useRunProgress(runId: string) {
+function useRunProgress(runId: string | null) {
   const [progress, setProgress] = useState<RunProgressResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!runId) {
+      setProgress(null);
+      setError(null);
+      return;
+    }
+
     let cancelled = false;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -703,8 +717,13 @@ function useRunProgress(runId: string) {
   return { progress, error };
 }
 
-function LiveRunTracker({ runId }: { runId: string }) {
-  const { progress, error } = useRunProgress(runId);
+function LiveRunTracker({
+  progress,
+  error,
+}: {
+  progress: RunProgressResponse | null;
+  error: string | null;
+}) {
   const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
 
   if (error) {
@@ -745,14 +764,6 @@ function LiveRunTracker({ runId }: { runId: string }) {
       : isTerminal
         ? Math.max(lastRecordedStageIndex, 0)
         : Math.max(activeStageIndex, 0);
-  const statusLabel = failed
-    ? 'Needs attention'
-    : session.state === 'completed'
-      ? 'Journey complete'
-      : session.state === 'cancelled'
-        ? 'Run cancelled'
-        : `Working on ${PROCESS_STAGE_COPY[visualActiveIndex]?.title.toLowerCase() ?? 'the journey'}`;
-
   const stages: ProcessStageView[] = PROCESS_STAGE_COPY.map((stage, index) => {
     const stageState = TRACKER_STAGES[index]?.state;
     const stageSteps = stageState ? steps.filter((step) => step.sessionState === stageState) : [];
@@ -815,7 +826,7 @@ function LiveRunTracker({ runId }: { runId: string }) {
         </div>
       ) : null}
       <div aria-live="polite">
-        <ProcessBoard persona={persona} stages={stages} statusLabel={statusLabel} />
+        <ProcessBoard persona={persona} stages={stages} />
       </div>
     </section>
   );
@@ -872,8 +883,13 @@ function sessionStatusLabel(session: PersonaSession): string {
   return 'Preparing browser';
 }
 
-function LiveRunView({ runId }: { runId: string }) {
-  const { progress, error } = useRunProgress(runId);
+function LiveRunView({
+  progress,
+  error,
+}: {
+  progress: RunProgressResponse | null;
+  error: string | null;
+}) {
   const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
   const [followLive, setFollowLive] = useState(true);
@@ -1237,6 +1253,22 @@ function LiveView({ onOpenFinding }: LiveViewProps) {
     [persona.id],
   );
 
+  // A real run uses LiveRunView above. Until one exists, keep Live View neutral instead of
+  // showing the old illustrative Forma walkthrough.
+  const showIllustrativeTemplate = false;
+  if (!showIllustrativeTemplate) {
+    return (
+      <section className="transmission">
+        <div className="live-empty">
+          <span aria-hidden="true">◎</span>
+          <strong>Ready for a live run</strong>
+          <p>Begin a run to see the journey appear here.</p>
+        </div>
+      </section>
+    );
+  }
+
+  // Kept temporarily as the source for the real-run presentation while that view is migrated.
   return (
     <section className="transmission">
       <header className="transmission-header">
