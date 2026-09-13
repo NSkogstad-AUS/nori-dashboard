@@ -173,7 +173,10 @@ interface BlockedRequest {
   reason: string;
 }
 
-const NETWORK_POLICY_TIMEOUT_MS = 1_000;
+// This request is the browser's actual navigation, fetched without redirects so the next hop can
+// be checked before Chromium follows it. A one-second ceiling produced false safety failures on
+// healthy sites whose first byte arrived near that boundary (for example, onio.club/about).
+const NETWORK_POLICY_TIMEOUT_MS = 10_000;
 
 async function installNavigationGuard(
   context: BrowserContext,
@@ -184,13 +187,15 @@ async function installNavigationGuard(
     const request = route.request();
     const url = request.url();
     const isNavigationRequest = request.isNavigationRequest();
+    const isTopLevelNavigation =
+      isNavigationRequest && request.frame() === request.frame().page().mainFrame();
     const result = await checkNavigationTarget(url, navigationOptions);
     if (!result.allowed) {
       // Third-party scripts, pixels, fonts, and images are denied at the network boundary, but
       // they are not persona navigation attempts. Treating any denied subresource as fatal made
       // otherwise successful page loads fail whenever a site included an external analytics or
       // CDN request. Main-frame and popup navigations remain fatal and are surfaced as steps.
-      if (isNavigationRequest) {
+      if (isTopLevelNavigation) {
         onBlocked({ url, reason: result.reason ?? 'unsafe_target' });
       }
       await route.abort('blockedbyclient');
@@ -208,7 +213,11 @@ async function installNavigationGuard(
           timeout: NETWORK_POLICY_TIMEOUT_MS,
         });
       } catch {
-        onBlocked({ url, reason: 'network_policy_timeout' });
+        // A child frame is ancillary to the persona journey. Keep it outside the network boundary
+        // without turning its availability problem into a terminal failure for the main page.
+        if (isTopLevelNavigation) {
+          onBlocked({ url, reason: 'network_policy_timeout' });
+        }
         await route.abort('timedout').catch(() => undefined);
         return;
       }
@@ -217,10 +226,12 @@ async function installNavigationGuard(
         const redirectUrl = new URL(location, url).href;
         const redirectResult = await checkNavigationTarget(redirectUrl, navigationOptions);
         if (!redirectResult.allowed) {
-          onBlocked({
-            url: redirectUrl,
-            reason: redirectResult.reason ?? 'unsafe_redirect_target',
-          });
+          if (isTopLevelNavigation) {
+            onBlocked({
+              url: redirectUrl,
+              reason: redirectResult.reason ?? 'unsafe_redirect_target',
+            });
+          }
           await route.abort('blockedbyclient');
           return;
         }

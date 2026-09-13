@@ -50,6 +50,7 @@ export const thirdPartyResourcePage = shell(
   'Third-party resource',
   `
   <img src="http://127.0.0.1:9999/tracking-pixel.png" alt="" />
+  <iframe src="http://127.0.0.1:9999/embedded-widget" title="Third-party widget"></iframe>
   <h1>Weekly Newsletter</h1>
   <button id="subscribe-btn" onclick="this.textContent = 'Subscribed'">Subscribe</button>
 `,

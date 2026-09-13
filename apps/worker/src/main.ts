@@ -309,6 +309,7 @@ async function pollLoop() {
 }
 
 let server: ReturnType<typeof createServer> | null = null;
+let shuttingDown = false;
 
 export function startWorker(): void {
   server = createServer((req, res) => {
@@ -322,32 +323,53 @@ export function startWorker(): void {
     res.end(JSON.stringify({ error: 'not_found' }));
   });
 
+  server.once('error', (error: NodeJS.ErrnoException) => {
+    polling = false;
+    if (error.code === 'EADDRINUSE') {
+      console.error(
+        `[worker] port ${PORT} is already in use. Another Nori worker is likely already running.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.error('[worker] health server failed', error);
+    process.exitCode = 1;
+  });
+
   server.listen(PORT, () => {
     console.log(`[worker] ${WORKER_ID} started, health check on http://localhost:${PORT}/health`);
     console.log('[worker] polling for jobs...');
+    void ensureRemainingPersonas()
+      .catch((error: unknown) => console.error('[worker] failed to seed personas', error))
+      .finally(() => {
+        if (polling) void pollLoop();
+      });
   });
-  void ensureRemainingPersonas()
-    .catch((error: unknown) => console.error('[worker] failed to seed personas', error))
-    .finally(() => void pollLoop());
 }
 
 function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`[worker] received ${signal}, shutting down gracefully`);
   polling = false;
-  const finish = () => {
-    server?.close((err) => {
-      if (err) {
-        console.error('[worker] error while closing health server', err);
-        process.exit(1);
-      }
-      process.exit(0);
-    });
-  };
-  if (currentJobPromise) {
-    currentJobPromise.finally(finish);
-  } else {
-    finish();
-  }
+
+  // Release the health port immediately so tsx watch can start the replacement process while
+  // this process gives an in-flight job a short window to clean up its browser context.
+  server?.close((error) => {
+    if (error) console.error('[worker] error while closing health server', error);
+  });
+  server = null;
+
+  const forceExit = setTimeout(() => {
+    console.warn('[worker] shutdown deadline reached; exiting');
+    process.exit(0);
+  }, 5000);
+  forceExit.unref();
+
+  void (currentJobPromise ?? Promise.resolve()).finally(() => {
+    clearTimeout(forceExit);
+    process.exit(0);
+  });
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));

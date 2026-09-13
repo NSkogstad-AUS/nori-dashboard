@@ -222,6 +222,29 @@ test('blocked third-party subresources do not fail an allowed page navigation', 
   }
 });
 
+test('a slow allowed navigation is not reported as an unsafe target', async () => {
+  const { workspace, run, session } = await createLifecycleFixture('/slow-navigation', 30);
+  try {
+    await runFixedSessionScript({
+      run,
+      session,
+      navigationOptions: {
+        allowedOrigins: [FIXTURE_ORIGIN],
+        allowedPorts: [FIXTURE_PORT],
+        allowPrivateTargets: true,
+      },
+      monitorIntervalMs: 25,
+    });
+
+    const steps = await listStepsForSession(session.id);
+    assert.equal(steps[0]?.action, 'navigate');
+    assert.equal(steps[0]?.outcome, 'success');
+    assert.ok(steps.every((step) => step.outcome === 'success'));
+  } finally {
+    await cleanupLifecycleFixture(workspace.id, session.id);
+  }
+});
+
 test('wall-clock timeout interrupts a stuck browser action and releases Chromium', async () => {
   const { workspace, run, session } = await createLifecycleFixture('/unclickable', 2);
   await assert.rejects(

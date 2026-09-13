@@ -749,68 +749,69 @@ main {
 
 .view-switch {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   margin: 0;
-  padding: 8px 12px 12px;
-  border: 0;
-  border-radius: 0 0 30px 30px;
-  background: var(--paper);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #f7f5f0;
+}
+
+.view-switch-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fff;
 }
 
 .view-switch .pill {
-  border: 1px solid var(--line);
-  background: #fff;
-  border-radius: 999px;
-  padding: 12px 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px 15px;
   font-size: var(--text-xs);
   color: var(--muted);
   position: relative;
   white-space: nowrap;
-  box-shadow: 0 4px 12px #24252d08;
+  box-shadow: none;
 }
 
 .view-switch .pill[aria-pressed='true'] {
   background: var(--ink);
-  border-color: var(--ink);
   color: #fff;
   font-weight: 600;
+  box-shadow: 0 2px 5px rgb(26 29 36 / 14%);
 }
 
-.view-switch .pill[aria-pressed='true']::after {
-  content: none;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--ink);
+.live-view-dot {
+  width: 6px;
+  height: 6px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
 }
 
-/* The run action shares the pill row with the two view toggles but isn't one of them: it's an
-   action, not a view state, so it carries the coral accent (matching .accent) instead of the
-   toggles' pressed/unpressed ink treatment, with a hairline divider separating the two groups.
-   Scoped entirely to .begin-run — the toggles' own appearance is unchanged. */
 .view-switch .pill.begin-run {
-  margin-left: 5px;
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding-inline: 17px;
   background: var(--coral);
-  border-color: #ef9a7f;
   color: #382d29;
   font-weight: 600;
-}
-
-.view-switch .pill.begin-run::before {
-  content: '';
-  position: absolute;
-  left: -6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1px;
-  height: 20px;
-  background: var(--line);
+  box-shadow: 0 2px 5px rgb(130 59 42 / 12%);
 }
 
 .view-switch .pill.begin-run:hover:not(:disabled) {
   background: color-mix(in srgb, var(--coral) 88%, var(--ink));
+  transform: translateY(-1px);
 }
 
 .view-switch .pill.begin-run:disabled {
@@ -824,7 +825,7 @@ main {
 
 .journey-experience {
   position: relative;
-  padding-top: 70px;
+  padding-top: 59px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: #fff;
@@ -833,29 +834,10 @@ main {
 .journey-experience > .view-switch {
   position: absolute;
   top: -1px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: -1px;
+  right: -1px;
   z-index: 1;
-}
-
-.journey-experience > .view-switch::before,
-.journey-experience > .view-switch::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 24px;
-  height: 24px;
-  pointer-events: none;
-}
-
-.journey-experience > .view-switch::before {
-  right: 100%;
-  background: radial-gradient(circle at 0 100%, transparent 24px, var(--paper) 24.5px);
-}
-
-.journey-experience > .view-switch::after {
-  left: 100%;
-  background: radial-gradient(circle at 100% 100%, transparent 24px, var(--paper) 24.5px);
+  border-radius: 15px 15px 0 0;
 }
 
 .journey-experience > .map-panel,
@@ -868,11 +850,22 @@ main {
 @media (max-width: 600px) {
   .journey-experience {
     border-radius: 14px;
-    padding-top: 65px;
+    padding-top: 57px;
   }
 
   .journey-experience .view-switch .pill {
-    padding: 10px 16px;
+    min-height: 34px;
+    padding: 7px 11px;
+  }
+
+  .journey-experience .view-switch {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .journey-experience .view-switch .pill.begin-run {
+    min-height: 36px;
+    padding-inline: 12px;
   }
 
   .journey-step > * {
@@ -3763,7 +3756,6 @@ form > .pill {
 
 .journey-website-preview {
   margin-top: 20px;
-  width: 100%;
   aspect-ratio: 16 / 10;
   border-radius: 16px;
   overflow: hidden;

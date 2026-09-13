@@ -42,6 +42,11 @@ const server = createServer((req, res) => {
         await sleep(5000);
         respondHtml(res, 200, homePage);
         return;
+      case '/slow-navigation':
+        // A healthy response outside the former one-second policy window must still load.
+        await sleep(1500);
+        respondHtml(res, 200, homePage);
+        return;
       case '/redirect-unsafe':
         res.writeHead(302, { location: 'http://127.0.0.1:9999/internal' });
         res.end();
