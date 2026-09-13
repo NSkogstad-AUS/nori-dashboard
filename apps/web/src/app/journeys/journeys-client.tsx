@@ -1617,7 +1617,7 @@ function JourneySummarySection({
             </label>
           ) : null}
         </div>
-        <div>
+        <div className="journey-summary-intro">
           <h2 id="journey-summary-title">What {persona.name} experienced</h2>
           <p>
             {report?.summary ??
@@ -1665,13 +1665,12 @@ function JourneySummarySection({
             </ol>
           ) : (
             <p>
-              Every recorded action completed successfully. Review the observations for softer signs
-              of friction.
+              No recorded actions were blocked. Review the observations below for possible friction.
             </p>
           )}
         </article>
 
-        <article className="journey-summary-card">
+        <article className="journey-summary-card journey-summary-pages">
           <span className="journey-summary-card-label">Journey path</span>
           <h3>Pages and activity</h3>
           <ol className="journey-summary-path">
@@ -1689,7 +1688,7 @@ function JourneySummarySection({
           </ol>
         </article>
 
-        <article className="journey-summary-card">
+        <article className="journey-summary-card journey-summary-notes">
           <span className="journey-summary-card-label">Key observations</span>
           <h3>What the persona noticed</h3>
           {observedSteps.length > 0 ? (
