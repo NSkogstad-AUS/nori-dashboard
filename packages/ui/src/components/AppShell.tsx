@@ -20,10 +20,6 @@ export function AppShell({ collapsed, sidebar, header, floatingDock, children }:
         <main>
           {header}
           {children}
-          <footer className="page-footer">
-            <span>All journeys and findings are fictional. No live agents.</span>
-            <span>Nori / A fresh perspective</span>
-          </footer>
         </main>
       </div>
       {floatingDock}

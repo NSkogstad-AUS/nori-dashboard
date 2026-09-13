@@ -450,17 +450,6 @@ main {
   color: var(--muted);
 }
 
-.page-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding: 25px 0 36px;
-  font-size: var(--text-2xs);
-  color: var(--muted);
-  border-top: 1px solid var(--line);
-  margin-top: 8px;
-}
-
 .floating-dock {
   position: fixed;
   right: 32px;
@@ -775,7 +764,6 @@ main {
   position: relative;
   margin: 0 0 40px;
   padding: 32px 0 40px;
-  border-bottom: 1px solid var(--line);
 }
 
 .view-switch {
@@ -3673,13 +3661,6 @@ form > .pill {
   .site-grid {
     grid-template-columns: 1fr;
   }
-  .page-footer {
-    padding-bottom: 85px;
-    line-height: 1.6;
-  }
-  .page-footer > span:last-child {
-    display: none;
-  }
   .floating-dock {
     right: 20px;
     bottom: 15px;
@@ -3843,7 +3824,6 @@ form > .pill {
 /* Website entry and compact perspectives */
 .journey-website {
   padding: 36px 0 32px;
-  border-bottom: 1px solid var(--line);
 }
 
 .journey-website-input {
