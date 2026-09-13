@@ -148,6 +148,10 @@ function JourneysContent() {
   const [beginError, setBeginError] = useState<string | null>(null);
   const [cancelPending, setCancelPending] = useState(false);
   const [cancelledRunId, setCancelledRunId] = useState<string | null>(null);
+  const [finishPending, setFinishPending] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [summaryVisible, setSummaryVisible] = useState(false);
+  const [finishedManually, setFinishedManually] = useState(false);
   const [localRuns, setLocalRuns] = useState<LocalRun[]>([]);
   const { progress: runProgress, error: runProgressError } = useRunProgress(runId);
   const locallyCancelled = Boolean(runId && cancelledRunId === runId);
@@ -179,7 +183,7 @@ function JourneysContent() {
               : runProgress?.run.state === 'cancelled'
                 ? 'Run cancelled'
                 : 'Ready to begin';
-  const runStatusLabel = beginError ?? persistedRunStatusLabel;
+  const runStatusLabel = finishError ?? beginError ?? persistedRunStatusLabel;
   const historyWebsiteId = runProgress?.run.websiteId ?? selectedWebsiteId;
   const historyItems = localRuns
     .filter((run) => run.websiteId === historyWebsiteId)
@@ -196,6 +200,22 @@ function JourneysContent() {
   }, [selectedPersonId, setSelectedPersonId]);
 
   useEffect(() => setLocalRuns(readLocalRuns()), [runId]);
+
+  useEffect(() => {
+    setSummaryVisible(false);
+    setFinishedManually(false);
+    setFinishError(null);
+  }, [runId]);
+
+  useEffect(() => {
+    if (!summaryVisible) return;
+    const frame = window.requestAnimationFrame(() => {
+      const summary = document.getElementById('journey-summary');
+      summary?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      summary?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [summaryVisible]);
 
   useEffect(() => {
     const source = searchParams.get('from');
@@ -385,9 +405,36 @@ function JourneysContent() {
     }
   }, [runId, cancelPending]);
 
+  const finishJourney = useCallback(async () => {
+    if (summaryVisible) {
+      document.getElementById('journey-summary')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+      return;
+    }
+    if (!runProgress || finishPending) return;
+    setFinishPending(true);
+    setFinishError(null);
+    try {
+      if (runRunning) {
+        setFinishedManually(true);
+        const stopped = await cancelRun();
+        if (!stopped) throw new Error('The run could not be stopped. Try again in a moment.');
+      }
+      setSummaryVisible(true);
+    } catch (finishFailure) {
+      setFinishError(
+        finishFailure instanceof Error ? finishFailure.message : 'Could not finish the journey.',
+      );
+    } finally {
+      setFinishPending(false);
+    }
+  }, [summaryVisible, runProgress, finishPending, runRunning, cancelRun]);
+
   return (
     <>
-      {/* Three full-height scroll-snap steps — website URL, persona shelf, journey experience.
+      {/* Four full-height scroll-snap steps — website, persona, journey, and summary.
           scroll-snap-type: y mandatory (see .journey-steps in components.css) means scrolling
           past a step's threshold jumps cleanly to the next one; there is no partial/in-between
           resting state, unlike a scrubbed scroll animation. Native browser behavior, no JS
@@ -456,6 +503,9 @@ function JourneysContent() {
               if (!selectedRunId) return;
               router.push(`/journeys?runId=${selectedRunId}&from=history#journey-results`);
             }}
+            onFinishJourney={runId && runProgress ? () => void finishJourney() : undefined}
+            finishJourneyPending={finishPending}
+            summaryVisible={summaryVisible}
           />
           {mode === 'live' ? (
             runId ? (
@@ -476,6 +526,11 @@ function JourneysContent() {
             <OverviewAtlas />
           )}
         </div>
+        {summaryVisible && runProgress ? (
+          <div id="journey-summary" className="journey-step journey-summary-step" tabIndex={-1}>
+            <JourneySummarySection progress={runProgress} finishedManually={finishedManually} />
+          </div>
+        ) : null}
       </div>
       <FindingDrawer
         open={findingOpen !== null}
@@ -1078,11 +1133,6 @@ function LiveRunView({
   const [continuePending, setContinuePending] = useState(false);
   const [continueError, setContinueError] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
-  const [finishPending, setFinishPending] = useState(false);
-  const [finishError, setFinishError] = useState<string | null>(null);
-  const [summaryVisible, setSummaryVisible] = useState(false);
-  const [finishedManually, setFinishedManually] = useState(false);
-  const summaryRef = useRef<HTMLElement>(null);
 
   const sessionDetail = progress?.sessions[selectedSessionIndex] ?? progress?.sessions[0];
   const frames = useMemo<LiveFrame[]>(
@@ -1092,27 +1142,6 @@ function LiveRunView({
       ) ?? [],
     [sessionDetail],
   );
-  const journeyLocations = useMemo(() => {
-    const locations = new Map<string, { label: string; actions: number }>();
-    for (const step of sessionDetail?.steps ?? []) {
-      const rawUrl = step.urlAfter ?? step.urlBefore;
-      if (!rawUrl) continue;
-      try {
-        const url = new URL(rawUrl);
-        const label = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}`;
-        const existing = locations.get(label);
-        locations.set(label, { label, actions: (existing?.actions ?? 0) + 1 });
-      } catch {
-        // A malformed historical URL should not prevent the rest of the summary rendering.
-      }
-    }
-    if (locations.size === 0 && progress?.run.url) {
-      const url = new URL(progress.run.url);
-      const label = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}`;
-      locations.set(label, { label, actions: sessionDetail?.steps.length ?? 0 });
-    }
-    return [...locations.values()];
-  }, [progress?.run.url, sessionDetail]);
 
   useEffect(() => {
     if (followLive && frames.length > 0) setSelectedFrameIndex(frames.length - 1);
@@ -1132,12 +1161,6 @@ function LiveRunView({
     ? Math.max(0, Math.floor((clock - lastActivityTimestamp) / 1000))
     : 0;
   const appearsStalled = isActive && secondsSinceAction >= 25;
-  const issueSteps = sessionDetail?.steps.filter((step) => step.outcome !== 'success') ?? [];
-  const observedSteps =
-    sessionDetail?.steps
-      .filter((step) => Boolean(step.observation))
-      .slice(-4)
-      .reverse() ?? [];
   const currentUrl = currentStep?.urlAfter ?? currentStep?.urlBefore ?? progress?.run.url;
   const viewportWidth = session?.device.viewportWidth ?? 1280;
   const viewportHeight = session?.device.viewportHeight ?? 800;
@@ -1171,15 +1194,6 @@ function LiveRunView({
     const interval = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, [isActive]);
-
-  useEffect(() => {
-    if (!summaryVisible) return;
-    const frame = window.requestAnimationFrame(() => {
-      summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      summaryRef.current?.focus({ preventScroll: true });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [summaryVisible]);
 
   const selectFrame = (index: number) => {
     setSelectedFrameIndex(index);
@@ -1234,30 +1248,6 @@ function LiveRunView({
           : 'Could not continue the journey.',
       );
       setContinuePending(false);
-    }
-  };
-
-  const finishJourney = async () => {
-    if (summaryVisible) {
-      summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
-    }
-    if (finishPending) return;
-    setFinishPending(true);
-    setFinishError(null);
-    try {
-      if (isActive) {
-        setFinishedManually(true);
-        const stopped = await onCancelRun();
-        if (!stopped) throw new Error('The run could not be stopped. Try again in a moment.');
-      }
-      setSummaryVisible(true);
-    } catch (finishFailure) {
-      setFinishError(
-        finishFailure instanceof Error ? finishFailure.message : 'Could not finish the journey.',
-      );
-    } finally {
-      setFinishPending(false);
     }
   };
 
@@ -1527,139 +1517,153 @@ function LiveRunView({
               </div>
             ) : null}
           </aside>
-          <button
-            type="button"
-            className="finish-journey-button"
-            onClick={() => void finishJourney()}
-            disabled={finishPending || cancelPending}
-          >
-            {finishPending
-              ? 'Finishing…'
-              : summaryVisible
-                ? 'View journey summary'
-                : 'Finish Journey'}
-          </button>
-          {finishError ? (
-            <small className="finish-journey-error" role="alert">
-              {finishError}
-            </small>
-          ) : null}
         </div>
       </div>
-      {summaryVisible ? (
-        <section
-          ref={summaryRef}
-          id="journey-summary"
-          className="journey-summary-report"
-          tabIndex={-1}
-          aria-labelledby="journey-summary-title"
-        >
-          <header className="journey-summary-header">
-            <span>Journey summary</span>
-            <div>
-              <h2 id="journey-summary-title">What {persona.name} experienced</h2>
-              <p>
-                {sessionDetail.report?.summary ??
-                  (finishedManually
-                    ? 'This summary covers the journey up to the point where you finished it.'
-                    : 'This summary is based on the actions and observations captured during the journey.')}
-              </p>
-            </div>
-          </header>
+    </section>
+  );
+}
 
-          <div className="journey-summary-metrics" aria-label="Journey totals">
-            <article>
-              <strong>{sessionDetail.steps.length}</strong>
-              <span>actions observed</span>
-            </article>
-            <article>
-              <strong>{journeyLocations.length}</strong>
-              <span>pages visited</span>
-            </article>
-            <article>
-              <strong>{frames.length}</strong>
-              <span>moments captured</span>
-            </article>
-            <article className={issueSteps.length > 0 ? 'has-issues' : ''}>
-              <strong>{issueSteps.length}</strong>
-              <span>issues encountered</span>
-            </article>
-          </div>
+function JourneySummarySection({
+  progress,
+  finishedManually,
+}: {
+  progress: RunProgressResponse;
+  finishedManually: boolean;
+}) {
+  const sessionDetail = progress.sessions[0];
+  if (!sessionDetail) {
+    return <section className="journey-summary-report">No journey activity was recorded.</section>;
+  }
 
-          <div className="journey-summary-grid">
-            <article className="journey-summary-card journey-summary-issues">
-              <span className="journey-summary-card-label">Where issues arose</span>
-              <h3>
-                {issueSteps.length > 0
-                  ? 'Moments that need attention'
-                  : 'No blocked actions recorded'}
-              </h3>
-              {issueSteps.length > 0 ? (
-                <ol>
-                  {issueSteps.map((step) => (
-                    <li key={step.id}>
-                      <strong>{STEP_ACTION_LABEL[step.action]}</strong>
-                      <span>{step.observation ?? stepSummary(step)}</span>
-                      <small>{step.urlAfter ?? step.urlBefore ?? progress.run.url}</small>
-                    </li>
-                  ))}
-                </ol>
-              ) : (
-                <p>
-                  Every recorded action completed successfully. Review the observations for softer
-                  signs of confusion or friction.
-                </p>
-              )}
-            </article>
+  const { persona, steps, report } = sessionDetail;
+  const issueSteps = steps.filter((step) => step.outcome !== 'success');
+  const observedSteps = steps
+    .filter((step) => Boolean(step.observation))
+    .slice(-4)
+    .reverse();
+  const capturedMoments = steps.reduce((total, step) => total + step.artifactIds.length, 0);
+  const locations = new Map<string, number>();
+  for (const step of steps) {
+    const rawUrl = step.urlAfter ?? step.urlBefore;
+    if (!rawUrl) continue;
+    try {
+      const url = new URL(rawUrl);
+      const label = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}`;
+      locations.set(label, (locations.get(label) ?? 0) + 1);
+    } catch {
+      // Omit malformed historical URLs while preserving the rest of the report.
+    }
+  }
+  if (locations.size === 0) {
+    const url = new URL(progress.run.url);
+    locations.set(`${url.hostname}${url.pathname === '/' ? '' : url.pathname}`, steps.length);
+  }
+  const journeyLocations = [...locations.entries()].map(([label, actions]) => ({ label, actions }));
 
-            <article className="journey-summary-card">
-              <span className="journey-summary-card-label">Journey path</span>
-              <h3>Pages and activity</h3>
-              <ol className="journey-summary-path">
-                {journeyLocations.map((location, index) => (
-                  <li key={location.label}>
-                    <span>{String(index + 1).padStart(2, '0')}</span>
-                    <div>
-                      <strong>{location.label}</strong>
-                      <small>
-                        {location.actions} {location.actions === 1 ? 'action' : 'actions'}
-                      </small>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </article>
+  return (
+    <section className="journey-summary-report" aria-labelledby="journey-summary-title">
+      <header className="journey-summary-header">
+        <span>Journey summary</span>
+        <div>
+          <h2 id="journey-summary-title">What {persona.name} experienced</h2>
+          <p>
+            {report?.summary ??
+              (finishedManually
+                ? 'This summary covers the journey up to the point where you finished it.'
+                : 'This summary is based on the actions and observations captured during the journey.')}
+          </p>
+        </div>
+      </header>
 
-            <article className="journey-summary-card">
-              <span className="journey-summary-card-label">Key observations</span>
-              <h3>What the persona noticed</h3>
-              {observedSteps.length > 0 ? (
-                <ul className="journey-summary-observations">
-                  {observedSteps.map((step) => (
-                    <li key={step.id}>{step.observation}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>No written observations were captured before the journey ended.</p>
-              )}
-            </article>
+      <div className="journey-summary-metrics" aria-label="Journey totals">
+        <article>
+          <strong>{steps.length}</strong>
+          <span>actions observed</span>
+        </article>
+        <article>
+          <strong>{journeyLocations.length}</strong>
+          <span>pages visited</span>
+        </article>
+        <article>
+          <strong>{capturedMoments}</strong>
+          <span>moments captured</span>
+        </article>
+        <article className={issueSteps.length > 0 ? 'has-issues' : ''}>
+          <strong>{issueSteps.length}</strong>
+          <span>issues encountered</span>
+        </article>
+      </div>
 
-            <article className="journey-summary-card journey-summary-next-step">
-              <span className="journey-summary-card-label">Recommended review</span>
-              <h3>
-                {issueSteps.length > 0
-                  ? 'Start with failed interactions'
-                  : 'Review the captured moments'}
-              </h3>
-              <p>
-                {issueSteps.length > 0
-                  ? 'Reproduce each highlighted action, confirm what prevented progress, and compare it with the persona’s observation.'
-                  : 'Use the captured moments to check whether the page hierarchy, labels, and next actions were as clear as they appeared.'}
-              </p>
-            </article>
-          </div>
-        </section>
-      ) : null}
+      <div className="journey-summary-grid">
+        <article className="journey-summary-card journey-summary-issues">
+          <span className="journey-summary-card-label">Where issues arose</span>
+          <h3>
+            {issueSteps.length > 0 ? 'Moments that need attention' : 'No blocked actions recorded'}
+          </h3>
+          {issueSteps.length > 0 ? (
+            <ol>
+              {issueSteps.map((step) => (
+                <li key={step.id}>
+                  <strong>{STEP_ACTION_LABEL[step.action]}</strong>
+                  <span>{step.observation ?? stepSummary(step)}</span>
+                  <small>{step.urlAfter ?? step.urlBefore ?? progress.run.url}</small>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>
+              Every recorded action completed successfully. Review the observations for softer signs
+              of friction.
+            </p>
+          )}
+        </article>
+
+        <article className="journey-summary-card">
+          <span className="journey-summary-card-label">Journey path</span>
+          <h3>Pages and activity</h3>
+          <ol className="journey-summary-path">
+            {journeyLocations.map((location, index) => (
+              <li key={location.label}>
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <strong>{location.label}</strong>
+                  <small>
+                    {location.actions} {location.actions === 1 ? 'action' : 'actions'}
+                  </small>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </article>
+
+        <article className="journey-summary-card">
+          <span className="journey-summary-card-label">Key observations</span>
+          <h3>What the persona noticed</h3>
+          {observedSteps.length > 0 ? (
+            <ul className="journey-summary-observations">
+              {observedSteps.map((step) => (
+                <li key={step.id}>{step.observation}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>No written observations were captured before the journey ended.</p>
+          )}
+        </article>
+
+        <article className="journey-summary-card journey-summary-next-step">
+          <span className="journey-summary-card-label">Recommended review</span>
+          <h3>
+            {issueSteps.length > 0
+              ? 'Start with failed interactions'
+              : 'Review the captured moments'}
+          </h3>
+          <p>
+            {issueSteps.length > 0
+              ? 'Reproduce each highlighted action, confirm what prevented progress, and compare it with the persona observation.'
+              : 'Review the captured moments for unclear hierarchy, labels, or next actions.'}
+          </p>
+        </article>
+      </div>
     </section>
   );
 }

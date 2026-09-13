@@ -907,6 +907,32 @@ main {
   box-shadow: none;
 }
 
+.view-switch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.view-switch .pill.finish-run {
+  min-height: 38px;
+  padding-inline: 16px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: #fff;
+  font-weight: 600;
+}
+
+.view-switch .pill.finish-run:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 88%, #fff);
+  transform: translateY(-1px);
+}
+
+.view-switch .pill.finish-run:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
 .journey-experience {
   position: relative;
   padding-top: 59px;
@@ -3388,47 +3414,6 @@ form > .pill {
   gap: 10px;
 }
 
-.finish-journey-button {
-  width: 100%;
-  min-height: 46px;
-  padding: 12px 16px;
-  border: 1px solid var(--ink);
-  border-radius: 10px;
-  background: var(--ink);
-  color: #fff;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  transition:
-    background-color 180ms ease,
-    color 180ms ease,
-    transform 180ms ease;
-}
-
-.finish-journey-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ink) 88%, #fff);
-  transform: translateY(-1px);
-}
-
-.finish-journey-button:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.finish-journey-button:focus-visible {
-  outline: 2px solid var(--coral);
-  outline-offset: 2px;
-}
-
-.finish-journey-button:disabled {
-  cursor: wait;
-  opacity: 0.58;
-}
-
-.finish-journey-error {
-  color: var(--signal);
-  font-size: 10px;
-  line-height: 1.4;
-}
-
 .live-activity-heading {
   display: flex;
   align-items: center;
@@ -3649,13 +3634,29 @@ form > .pill {
 }
 
 .journey-summary-report {
-  margin-top: 64px;
+  width: 90%;
+  margin: 0 auto;
   padding: 34px;
   scroll-margin-top: 20px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: #f7f5f0;
   color: var(--ink);
+}
+
+.journey-summary-step {
+  align-items: center;
+  justify-content: center;
+  padding: 36px 0 44px;
+  background: #fff;
+}
+
+.journey-summary-step:focus {
+  outline: none;
+}
+
+.journey-summary-step > .journey-summary-report {
+  width: 90%;
 }
 
 .journey-summary-report:focus {
@@ -3854,7 +3855,7 @@ form > .pill {
 
 @media (max-width: 800px) {
   .journey-summary-report {
-    margin-top: 40px;
+    margin: 0 auto;
     padding: 20px;
   }
 

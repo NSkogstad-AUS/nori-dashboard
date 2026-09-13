@@ -18,6 +18,9 @@ export interface JourneyViewSwitchProps {
   historyItems?: { id: string; label: string }[];
   activeHistoryId?: string | null;
   onSelectHistory?: (id: string) => void;
+  onFinishJourney?: () => void;
+  finishJourneyPending?: boolean;
+  summaryVisible?: boolean;
 }
 
 export function JourneyViewSwitch({
@@ -31,6 +34,9 @@ export function JourneyViewSwitch({
   historyItems = [],
   activeHistoryId = null,
   onSelectHistory,
+  onFinishJourney,
+  finishJourneyPending = false,
+  summaryVisible = false,
 }: JourneyViewSwitchProps) {
   return (
     <header className="view-switch">
@@ -75,25 +81,49 @@ export function JourneyViewSwitch({
         <i aria-hidden="true" />
         {statusLabel}
       </span>
-      {onBeginRun ? (
-        <button
-          type="button"
-          className={`pill begin-run${beginRunRunning && onCancelRun ? ' cancel-run' : ''}`}
-          onClick={beginRunRunning && onCancelRun ? onCancelRun : onBeginRun}
-          disabled={beginRunRunning ? !onCancelRun || cancelRunPending : false}
-        >
-          {beginRunRunning ? (
-            onCancelRun ? (cancelRunPending ? 'Cancelling…' : 'Cancel run') : 'Running…'
-          ) : (
-            <>
-              <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
-                <path d="M4.5 3.2 12 8l-7.5 4.8V3.2Z" fill="currentColor" />
-              </svg>
-              Begin run
-            </>
-          )}
-        </button>
-      ) : null}
+      <div className="view-switch-actions">
+        {onFinishJourney ? (
+          <button
+            type="button"
+            className="pill finish-run"
+            onClick={onFinishJourney}
+            disabled={finishJourneyPending || cancelRunPending}
+          >
+            {finishJourneyPending
+              ? 'Finishing…'
+              : summaryVisible
+                ? 'View summary'
+                : 'Finish Journey'}
+          </button>
+        ) : null}
+        {onBeginRun ? (
+          <button
+            type="button"
+            className={`pill begin-run${beginRunRunning && onCancelRun ? ' cancel-run' : ''}`}
+            onClick={beginRunRunning && onCancelRun ? onCancelRun : onBeginRun}
+            disabled={beginRunRunning ? !onCancelRun || cancelRunPending : false}
+          >
+            {beginRunRunning ? (
+              onCancelRun ? (
+                cancelRunPending ? (
+                  'Cancelling…'
+                ) : (
+                  'Cancel run'
+                )
+              ) : (
+                'Running…'
+              )
+            ) : (
+              <>
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">
+                  <path d="M4.5 3.2 12 8l-7.5 4.8V3.2Z" fill="currentColor" />
+                </svg>
+                Begin run
+              </>
+            )}
+          </button>
+        ) : null}
+      </div>
     </header>
   );
 }
