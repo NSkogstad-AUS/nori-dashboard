@@ -15,6 +15,9 @@ export interface JourneyViewSwitchProps {
   cancelRunPending?: boolean;
   /** Current journey status, displayed in the center of the control bar. */
   statusLabel?: string;
+  /** A per-run API key, held only in page state. */
+  apiKey?: string;
+  onApiKeyChange?: (value: string) => void;
   onFinishJourney?: () => void;
   finishJourneyPending?: boolean;
   summaryVisible?: boolean;
@@ -28,6 +31,8 @@ export function JourneyViewSwitch({
   onCancelRun,
   cancelRunPending = false,
   statusLabel = 'Ready to begin',
+  apiKey = '',
+  onApiKeyChange,
   onFinishJourney,
   finishJourneyPending = false,
   summaryVisible = false,
@@ -54,6 +59,22 @@ export function JourneyViewSwitch({
             Live view
           </button>
         </div>
+        {onApiKeyChange ? (
+          <label className="view-switch-api-key">
+            <span className="sr-only">Anthropic API key</span>
+            <input
+              id="journey-api-key"
+              type="password"
+              value={apiKey}
+              onChange={(event) => onApiKeyChange(event.target.value)}
+              placeholder="Anthropic API key"
+              autoComplete="new-password"
+              spellCheck={false}
+              aria-describedby="journey-api-key-help"
+            />
+            <small id="journey-api-key-help">Used for this run only. Never saved.</small>
+          </label>
+        ) : null}
       </div>
       <span className="view-switch-status" aria-live="polite">
         <i aria-hidden="true" />

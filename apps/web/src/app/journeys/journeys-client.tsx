@@ -486,20 +486,6 @@ function JourneysContent() {
               spellCheck={false}
             />
           </div>
-          <div className="journey-api-key-field">
-            <label htmlFor="journey-api-key">Anthropic API key</label>
-            <input
-              id="journey-api-key"
-              type="password"
-              value={apiKey}
-              onChange={(event) => setApiKey(event.target.value)}
-              placeholder="sk-ant-…"
-              autoComplete="new-password"
-              spellCheck={false}
-              aria-describedby="journey-api-key-help"
-            />
-            <small id="journey-api-key-help">Used for this run only. Never saved.</small>
-          </div>
           <WebsitePreview rawUrl={websiteUrl} />
         </section>
         <div className="journey-step perspective-panel">
@@ -517,6 +503,8 @@ function JourneysContent() {
             onCancelRun={runId && runRunning ? () => void cancelRun() : undefined}
             cancelRunPending={cancellationRequested}
             statusLabel={runStatusLabel}
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
             onFinishJourney={runId && runProgress ? () => void finishJourney() : undefined}
             finishJourneyPending={finishPending}
             summaryVisible={summaryVisible || Boolean(runProgress && !runRunning)}
@@ -527,7 +515,6 @@ function JourneysContent() {
                 progress={runProgress}
                 error={runProgressError}
                 apiKey={apiKey}
-                onApiKeyChange={setApiKey}
                 onCancelRun={cancelRun}
                 cancelPending={cancellationRequested}
               />
@@ -1143,14 +1130,12 @@ function LiveRunView({
   progress,
   error,
   apiKey,
-  onApiKeyChange,
   onCancelRun,
   cancelPending,
 }: {
   progress: RunProgressResponse | null;
   error: string | null;
   apiKey: string;
-  onApiKeyChange: (value: string) => void;
   onCancelRun: () => Promise<boolean>;
   cancelPending: boolean;
 }) {
@@ -1235,6 +1220,7 @@ function LiveRunView({
     const suppliedApiKey = apiKey.trim();
     if (!suppliedApiKey) {
       setContinueError('Enter your Anthropic API key above before continuing.');
+      document.getElementById('journey-api-key')?.focus();
       return;
     }
     setContinuePending(true);
@@ -1512,18 +1498,9 @@ function LiveRunView({
                     : 'You can continue from the last page without starting over.'}
                 </span>
                 {isModelAuthenticationFailure(session.failureMessage) || !apiKey.trim() ? (
-                  <label className="live-retry-key">
-                    <span>Anthropic API key</span>
-                    <input
-                      type="password"
-                      value={apiKey}
-                      onChange={(event) => onApiKeyChange(event.target.value)}
-                      placeholder="sk-ant-…"
-                      autoComplete="new-password"
-                      spellCheck={false}
-                    />
-                    <small>Used only for the continued run. Never saved.</small>
-                  </label>
+                  <small className="live-retry-key">
+                    Enter an Anthropic API key in the top bar to continue.
+                  </small>
                 ) : null}
                 <button
                   type="button"
@@ -1649,7 +1626,6 @@ function JourneySummarySection({
 
       <div className="journey-summary-grid">
         <article className="journey-summary-card journey-summary-issues">
-          <span className="journey-summary-card-label">Where issues arose</span>
           <h3>
             {issueSteps.length > 0 ? 'Moments that need attention' : 'No blocked actions recorded'}
           </h3>
@@ -1671,7 +1647,6 @@ function JourneySummarySection({
         </article>
 
         <article className="journey-summary-card journey-summary-pages">
-          <span className="journey-summary-card-label">Journey path</span>
           <h3>Pages and activity</h3>
           <ol className="journey-summary-path">
             {journeyLocations.map((location, index) => (
@@ -1689,12 +1664,23 @@ function JourneySummarySection({
         </article>
 
         <article className="journey-summary-card journey-summary-notes">
-          <span className="journey-summary-card-label">Key observations</span>
           <h3>What the persona noticed</h3>
           {observedSteps.length > 0 ? (
             <ul className="journey-summary-observations">
-              {observedSteps.map((step) => (
-                <li key={step.id}>{step.observation}</li>
+              {observedSteps.map((step, index) => (
+                <li key={step.id}>
+                  <details>
+                    <summary>
+                      <span>Observation {String(index + 1).padStart(2, '0')}</span>
+                      <i aria-hidden="true" />
+                    </summary>
+                    <div className="journey-observation-body">
+                      <div>
+                        <p>{step.observation}</p>
+                      </div>
+                    </div>
+                  </details>
+                </li>
               ))}
             </ul>
           ) : (
@@ -1703,7 +1689,6 @@ function JourneySummarySection({
         </article>
 
         <article className="journey-summary-card journey-summary-next-step">
-          <span className="journey-summary-card-label">Recommended review</span>
           <h3>
             {issueSteps.length > 0
               ? 'Start with failed interactions'

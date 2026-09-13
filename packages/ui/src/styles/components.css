@@ -800,6 +800,37 @@ main {
   min-width: 0;
 }
 
+.view-switch-api-key {
+  position: relative;
+  display: block;
+  width: clamp(180px, 18vw, 260px);
+}
+
+.view-switch-api-key input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.view-switch-api-key input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.view-switch-api-key small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
 .journey-history-select {
   display: block;
   min-width: 0;
@@ -995,6 +1026,10 @@ main {
 
   .view-switch-leading {
     gap: 6px;
+  }
+
+  .view-switch-api-key {
+    width: min(170px, 32vw);
   }
 
   .journey-history-select select {
@@ -3811,14 +3846,6 @@ form > .pill {
   line-height: 1.6;
 }
 
-.journey-summary-card-label {
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
 .journey-summary-card ol,
 .journey-summary-card ul {
   margin: 16px 0 0;
@@ -3880,12 +3907,6 @@ form > .pill {
   font-variant-numeric: tabular-nums;
 }
 
-.journey-summary-observations li {
-  color: var(--muted);
-  font-size: var(--text-xs);
-  line-height: 1.55;
-}
-
 .journey-summary-card .journey-summary-observations {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3893,15 +3914,76 @@ form > .pill {
 }
 
 .journey-summary-observations li {
+  padding: 0;
+}
+
+.journey-summary-observations li + li {
+  border-top: 0;
+}
+
+.journey-summary-observations details {
   border-top: 1px solid var(--line);
-  padding: 16px 0;
+}
+
+.journey-summary-observations summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.journey-summary-observations summary::-webkit-details-marker {
+  display: none;
+}
+
+.journey-summary-observations summary i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 160ms ease;
+}
+
+.journey-summary-observations details[open] summary i {
+  transform: rotate(225deg) translateY(-2px);
+}
+
+.journey-observation-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease;
+}
+
+.journey-summary-observations details[open] .journey-observation-body {
+  grid-template-rows: 1fr;
+}
+
+.journey-observation-body > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.journey-observation-body p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
   overflow-wrap: anywhere;
 }
 
-.journey-summary-observations li::before {
-  content: '—';
-  margin-right: 8px;
-  color: var(--clear);
+@media (prefers-reduced-motion: reduce) {
+  .journey-summary-observations summary i,
+  .journey-observation-body {
+    transition: none;
+  }
 }
 
 .journey-summary-issues {
