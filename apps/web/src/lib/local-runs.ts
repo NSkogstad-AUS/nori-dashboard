@@ -44,3 +44,13 @@ export function updateLocalRunState(runId: string, state: RunState, updatedAt: s
     // Progress polling should not fail because local history is unavailable.
   }
 }
+
+export function removeLocalRunsForWebsite(websiteId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const remaining = readLocalRuns().filter((run) => run.websiteId !== websiteId);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+  } catch {
+    // The server deletion has still succeeded if browser storage is unavailable.
+  }
+}

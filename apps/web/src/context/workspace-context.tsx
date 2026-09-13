@@ -15,6 +15,7 @@ import type { Website } from '@nori/contracts';
 export interface WorkspaceContextValue {
   websites: Website[];
   addWebsite: (website: Website) => void;
+  removeWebsite: (websiteId: string) => void;
   selectedWebsiteId: string;
   setSelectedWebsiteId: (websiteId: string) => void;
   collapsed: boolean;
@@ -41,8 +42,18 @@ export function WorkspaceProvider({
     setSelectedWebsiteId(website.id);
   };
 
+  const removeWebsite = (websiteId: string) => {
+    setWebsites((previous) => {
+      const next = previous.filter((website) => website.id !== websiteId);
+      setSelectedWebsiteId((selected) =>
+        selected === websiteId ? (next[0]?.id ?? '') : selected,
+      );
+      return next;
+    });
+  };
+
   const value = useMemo(
-    () => ({ websites, addWebsite, selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed }),
+    () => ({ websites, addWebsite, removeWebsite, selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed }),
     [websites, selectedWebsiteId, collapsed],
   );
 

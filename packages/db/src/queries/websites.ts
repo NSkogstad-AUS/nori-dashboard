@@ -58,3 +58,32 @@ export async function getWebsiteById(
   `;
   return row ? rowToCamelCase<Website>(row) : null;
 }
+
+export async function deleteWebsite(
+  workspaceId: string,
+  websiteId: string,
+): Promise<'deleted' | 'not_found' | 'active_run'> {
+  const sql = getDb();
+  return sql.begin(async (transaction) => {
+    const [website] = await transaction<{ id: string }[]>`
+      select id from websites
+      where workspace_id = ${workspaceId} and id = ${websiteId}
+      for update
+    `;
+    if (!website) return 'not_found';
+
+    const [activeRun] = await transaction<{ id: string }[]>`
+      select id from runs
+      where website_id = ${websiteId}
+        and state not in ('completed', 'completed_with_errors', 'failed', 'cancelled')
+      limit 1
+    `;
+    if (activeRun) return 'active_run';
+
+    await transaction`
+      delete from websites
+      where workspace_id = ${workspaceId} and id = ${websiteId}
+    `;
+    return 'deleted';
+  });
+}

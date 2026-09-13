@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { EmptyState } from '@nori/ui';
 import { useWorkspace } from '../../context/workspace-context';
-import { readLocalRuns, type LocalRun } from '../../lib/local-runs';
+import {
+  readLocalRuns,
+  removeLocalRunsForWebsite,
+  type LocalRun,
+} from '../../lib/local-runs';
 import type { Website } from '@nori/contracts';
-
-const COLOR_CLASSES = ['peach', 'violet', 'blue', 'lime'];
 
 function runStateLabel(state: LocalRun['state']): string {
   if (state === 'completed') return 'Journey complete';
@@ -17,11 +19,14 @@ function runStateLabel(state: LocalRun['state']): string {
   return 'Journey running';
 }
 
-export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Website[] }) {
+export function WebsitesPageClient({ initialWebsites: _initialWebsites }: { initialWebsites: Website[] }) {
   const router = useRouter();
-  const { websites, setSelectedWebsiteId } = useWorkspace();
+  const { websites, removeWebsite, setSelectedWebsiteId } = useWorkspace();
   const [localRuns, setLocalRuns] = useState<LocalRun[]>([]);
-  const displayedWebsites = websites.length > 0 ? websites : initialWebsites;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletePendingId, setDeletePendingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const displayedWebsites = websites;
 
   useEffect(() => setLocalRuns(readLocalRuns()), []);
 
@@ -31,6 +36,31 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
     router.push(
       latestRun ? `/journeys?runId=${latestRun.runId}&from=home#journey-results` : '/journeys',
     );
+  };
+
+  const deleteCard = async (site: Website) => {
+    if (confirmDeleteId !== site.id) {
+      setConfirmDeleteId(site.id);
+      setDeleteError(null);
+      return;
+    }
+    setDeletePendingId(site.id);
+    setDeleteError(null);
+    try {
+      const response = await fetch(`/api/websites/${site.id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const responseError: { message?: string } = await response.json().catch(() => ({}));
+        throw new Error(responseError.message ?? 'Could not delete this website.');
+      }
+      removeWebsite(site.id);
+      removeLocalRunsForWebsite(site.id);
+      setLocalRuns((previous) => previous.filter((run) => run.websiteId !== site.id));
+      setConfirmDeleteId(null);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete this website.');
+    } finally {
+      setDeletePendingId(null);
+    }
   };
 
   if (displayedWebsites.length === 0) {
@@ -67,9 +97,9 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
           + Add website
         </button>
       </div>
+      {deleteError ? <p className="home-sites-error" role="alert">{deleteError}</p> : null}
       <div className="site-grid">
-        {displayedWebsites.map((site, index) => {
-          const colorClass = COLOR_CLASSES[index % COLOR_CLASSES.length];
+        {displayedWebsites.map((site) => {
           const siteRuns = localRuns.filter((run) => run.websiteId === site.id);
           const latestRun = siteRuns[0];
           return (
@@ -83,30 +113,36 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
                   sandbox="allow-scripts allow-same-origin allow-forms"
                   referrerPolicy="no-referrer"
                 />
-                <span>
-                  <i aria-hidden="true" />
-                  Live preview
-                </span>
               </div>
-              <button
-                type="button"
-                className="website-card-open"
-                onClick={() => openJourney(site)}
-              >
-                <span className={`site-avatar ${colorClass}`}>
-                  {site.displayName[0]?.toUpperCase() ?? '?'}
-                </span>
-                <h2>{site.displayName}</h2>
-                <p>{new URL(site.origin).hostname}</p>
-                <footer>
+              <div className="website-card-info">
+                <header>
+                  <h2>{site.displayName}</h2>
+                  <button
+                    type="button"
+                    className={`website-card-delete${confirmDeleteId === site.id ? ' is-confirming' : ''}`}
+                    onClick={() => void deleteCard(site)}
+                    disabled={deletePendingId === site.id}
+                  >
+                    {deletePendingId === site.id
+                      ? 'Deleting…'
+                      : confirmDeleteId === site.id
+                        ? 'Confirm delete'
+                        : 'Delete'}
+                  </button>
+                </header>
+                <button
+                  type="button"
+                  className="website-card-open"
+                  onClick={() => openJourney(site)}
+                >
                   <span>
                     {latestRun
                       ? `${siteRuns.length} saved ${siteRuns.length === 1 ? 'journey' : 'journeys'} · ${runStateLabel(latestRun.state)}`
                       : 'No saved journeys'}
                   </span>
-                  <span>{latestRun ? 'Open latest journey ↗' : 'Start a journey ↗'}</span>
-                </footer>
-              </button>
+                  <strong>{latestRun ? 'Open latest journey ↗' : 'Start a journey ↗'}</strong>
+                </button>
+              </div>
             </article>
           );
         })}
