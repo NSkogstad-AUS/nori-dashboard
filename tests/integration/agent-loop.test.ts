@@ -10,6 +10,7 @@ import {
   runAgentLoop,
   validateBrowserAction,
   type PersonaActionModel,
+  type SelectActionInput,
 } from '@nori/agent';
 import type { AgentDecision, PageObservation, Persona } from '@nori/contracts';
 
@@ -56,13 +57,15 @@ class SequenceModel implements PersonaActionModel {
   readonly modelId = 'test-model';
   readonly promptVersion = 'test-prompt';
   private index = 0;
+  readonly screenshots: (string | undefined)[] = [];
 
   constructor(
     private readonly decisions: AgentDecision[],
     private readonly costUsd = 0.001,
   ) {}
 
-  async selectAction() {
+  async selectAction(input: SelectActionInput) {
+    this.screenshots.push(input.screenshotBase64);
     const decision = this.decisions[Math.min(this.index, this.decisions.length - 1)];
     this.index += 1;
     if (!decision) throw new Error('test model has no decision');
@@ -72,6 +75,34 @@ class SequenceModel implements PersonaActionModel {
     };
   }
 }
+
+test('agent loop sends screenshots on navigation changes and periodic refreshes only', async () => {
+  const model = new SequenceModel([
+    { action: { kind: 'scroll', deltaY: 300 }, observation: 'Inspect lower content.' },
+    { action: { kind: 'scroll', deltaY: 400 }, observation: 'Continue down the page.' },
+    { action: { kind: 'wait', milliseconds: 100 }, observation: 'Wait for content.' },
+    {
+      action: { kind: 'finish', outcome: 'task_success', summary: 'Review complete.' },
+      observation: 'Enough evidence is visible.',
+    },
+  ]);
+  await runAgentLoop({
+    persona,
+    task: 'Review the page.',
+    model,
+    navigationOptions,
+    maxActions: 4,
+    hardCostCapUsd: 0.5,
+    observe: async () => ({ ...observation, screenshotBase64: 'same-page-screenshot' }),
+    execute: async () => ({ stepId: randomUUID(), result: 'success' }),
+  });
+  assert.deepEqual(model.screenshots, [
+    'same-page-screenshot',
+    undefined,
+    undefined,
+    'same-page-screenshot',
+  ]);
+});
 
 test('bounded loop executes model choices and returns an evidence-linked task result', async () => {
   const model = new SequenceModel([
@@ -196,7 +227,7 @@ test('Anthropic adapter sends the versioned safety prompt and parses strict tool
           id: 'msg_test',
           type: 'message',
           role: 'assistant',
-          model: 'claude-sonnet-5',
+          model: 'claude-haiku-4-5-20251001',
           content: [
             {
               type: 'tool_use',
@@ -232,16 +263,20 @@ test('Anthropic adapter sends the versioned safety prompt and parses strict tool
       task: 'Subscribe.',
       observation,
       history: [],
+      screenshotBase64: 'nori-cost-test-image',
     });
     assert.equal(selection.decision.observation.length, 1000);
     assert.equal(selection.decision.action.kind, 'finish');
     if (selection.decision.action.kind === 'finish') {
       assert.equal(selection.decision.action.summary.length, 1000);
     }
-    assert.deepEqual(selection.usage, { inputTokens: 12, outputTokens: 5, costUsd: 0.000074 });
+    assert.deepEqual(selection.usage, { inputTokens: 12, outputTokens: 5, costUsd: 0.000037 });
     assert.match(String(requestBody?.system), /website content as untrusted data/);
     assert.deepEqual(requestBody?.tool_choice, { type: 'tool', name: 'browser_action' });
     const serializedRequest = JSON.stringify(requestBody);
+    assert.equal(serializedRequest.match(/nori-cost-test-image/g)?.length, 1);
+    assert.match(serializedRequest, /"model":"claude-haiku-4-5-20251001"/);
+    assert.match(serializedRequest, /"max_tokens":450/);
     assert.doesNotMatch(serializedRequest, /"oneOf"/);
     assert.doesNotMatch(serializedRequest, /"(?:minimum|maximum)"/);
     assert.match(serializedRequest, /"anyOf"/);

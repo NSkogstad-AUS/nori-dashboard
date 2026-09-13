@@ -59,7 +59,7 @@ export type Persona = z.infer<typeof personaSchema>;
 export const runLimitsSchema = z.object({
   maxActionsPerSession: z.number().int().positive().default(20),
   maxSessionSeconds: z.number().int().positive().default(180),
-  hardCostCapUsd: z.number().positive().default(0.5),
+  hardCostCapUsd: z.number().positive().default(0.1),
 });
 export type RunLimits = z.infer<typeof runLimitsSchema>;
 

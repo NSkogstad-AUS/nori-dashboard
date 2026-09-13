@@ -52,16 +52,21 @@ export async function runAgentLoop(options: RunAgentLoopOptions): Promise<AgentL
   const signatures = new Map<string, number>();
   const evidenceStepIds: string[] = [];
   const usage: ModelUsage = { inputTokens: 0, outputTokens: 0, costUsd: 0 };
+  let lastScreenshotUrl: string | null = null;
 
   for (let actionCount = 0; actionCount < options.maxActions; actionCount += 1) {
     options.signal?.throwIfAborted();
     const observation = await options.observe();
+    const includeScreenshot =
+      Boolean(observation.screenshotBase64) &&
+      (lastScreenshotUrl !== observation.url || actionCount % 3 === 0);
+    if (includeScreenshot) lastScreenshotUrl = observation.url;
     const selection = await options.model.selectAction({
       persona: options.persona,
       task: options.task,
       observation,
       history,
-      screenshotBase64: observation.screenshotBase64,
+      screenshotBase64: includeScreenshot ? observation.screenshotBase64 : undefined,
       signal: options.signal,
     });
     usage.inputTokens += selection.usage.inputTokens;

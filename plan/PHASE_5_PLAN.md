@@ -12,8 +12,9 @@ first-time visitor. The first task remains the owned fixture's newsletter subscr
 
 ## Decisions
 
-- Anthropic's official TypeScript SDK drives action selection. The default model is
-  `claude-sonnet-5`, configurable with `ANTHROPIC_MODEL`.
+- Anthropic's official TypeScript SDK drives action selection. The default model is the
+  lower-cost `claude-haiku-4-5-20251001`, configurable with `ANTHROPIC_MODEL`; Sonnet remains an
+  opt-in for harder sites.
 - Claude receives a compact current-page observation and screenshot, then must call one strict
   `browser_action` tool. It never receives direct Playwright or network access.
 - Website text is untrusted input. It cannot change origins, reveal credentials, authorize
@@ -23,6 +24,9 @@ first-time visitor. The first task remains the owned fixture's newsletter subscr
 - A task failure is a completed persona report with `task_failure`. Invalid model output and loop
   failures are `model_failure`; browser, storage, database, and runtime failures are
   `infrastructure_failure`.
+- New UI runs use a $0.10 hard model-cost cap. Screenshot bytes are excluded from JSON prompts,
+  unchanged pages refresh visual input every third decision, and compact text/history limits keep
+  each request bounded.
 
 ## Checklist
 
