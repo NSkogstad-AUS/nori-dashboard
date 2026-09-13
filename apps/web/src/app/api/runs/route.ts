@@ -14,6 +14,8 @@ function errorResponse(error: ApiError, status: number) {
   return NextResponse.json(error, { status });
 }
 
+class WorkerCredentialHandoffError extends Error {}
+
 function allowedOriginsForWebsite(origin: string): string[] {
   const websiteUrl = new URL(origin);
   const origins = new Set([websiteUrl.origin]);
@@ -29,6 +31,33 @@ function allowedOriginsForWebsite(origin: string): string[] {
   }
 
   return [...origins];
+}
+
+async function handCredentialToWorker(runToken: string, apiKey: string): Promise<void> {
+  const workerUrl = (process.env.WORKER_INTERNAL_URL?.trim() || 'http://127.0.0.1:8081').replace(
+    /\/$/,
+    '',
+  );
+  const internalToken = process.env.WORKER_INTERNAL_TOKEN?.trim();
+  try {
+    const response = await fetch(`${workerUrl}/credentials`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(internalToken ? { authorization: `Bearer ${internalToken}` } : {}),
+      },
+      body: JSON.stringify({ runToken, apiKey }),
+      signal: AbortSignal.timeout(4000),
+      cache: 'no-store',
+    });
+    if (response.ok) return;
+    throw new WorkerCredentialHandoffError(`worker credential handoff failed (${response.status})`);
+  } catch (error) {
+    if (error instanceof WorkerCredentialHandoffError) throw error;
+    throw new WorkerCredentialHandoffError('worker credential handoff failed', {
+      cause: error,
+    });
+  }
 }
 
 // Creates a real run: validates the request, verifies the target website belongs to the caller's
@@ -53,7 +82,7 @@ export async function POST(request: NextRequest) {
         400,
       );
     }
-    const { websiteId, url, task, personaIds, limits, idempotencyKey } = parsed.data;
+    const { websiteId, url, task, personaIds, limits, idempotencyKey, apiKey } = parsed.data;
 
     const website = await getWebsiteById(workspace.id, websiteId);
     if (!website) {
@@ -68,6 +97,11 @@ export async function POST(request: NextRequest) {
         404,
       );
     }
+
+    // Register before enqueueing so a job can never be claimed before its ephemeral credential
+    // reaches the worker. The credential is held only in worker memory, keyed by this opaque run
+    // token; it is not written to Postgres or returned by any API.
+    if (apiKey) await handCredentialToWorker(idempotencyKey, apiKey);
 
     const run = await createRun(workspace.id, {
       websiteId,
@@ -93,6 +127,16 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return errorResponse({ code: 'unauthorized', message: error.message }, 401);
+    }
+    if (error instanceof WorkerCredentialHandoffError) {
+      console.error('POST /api/runs could not reach the worker credential endpoint');
+      return errorResponse(
+        {
+          code: 'internal_error',
+          message: 'The journey worker is unavailable. Start it and try again.',
+        },
+        503,
+      );
     }
     // A duplicate (workspace_id, idempotency_key) violates the unique constraint in
     // packages/db/src/migrations/001_init.sql — surface it as a clear conflict rather than a

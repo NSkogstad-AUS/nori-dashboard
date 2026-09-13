@@ -38,6 +38,9 @@ export const createRunRequestSchema = z.object({
   personaIds: z.array(z.string().uuid()).min(1).max(3),
   limits: runLimitsSchema.partial().optional(),
   idempotencyKey: z.string().min(1),
+  // A caller-supplied model credential is handed directly to the worker and is never persisted
+  // with the run. It remains optional so deployments can continue using ANTHROPIC_API_KEY.
+  apiKey: z.string().trim().min(20).max(512).optional(),
 });
 export type CreateRunRequest = z.infer<typeof createRunRequestSchema>;
 

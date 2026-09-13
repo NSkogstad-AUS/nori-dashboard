@@ -2197,16 +2197,30 @@ main {
 
 .website-card-delete {
   flex: 0 0 auto;
-  padding: 6px 8px;
-  border-radius: 7px;
+  min-height: 38px;
+  padding: 9px 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
 }
 
 .website-card-delete:hover,
 .website-card-delete.is-confirming {
+  border-color: color-mix(in srgb, var(--signal) 28%, var(--line));
   background: color-mix(in srgb, var(--signal) 7%, #fff);
   color: var(--signal);
+}
+
+.website-card-delete:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .website-card-open {
@@ -4001,6 +4015,60 @@ form > .pill {
 
 .journey-website-input input::placeholder {
   color: #939599;
+}
+
+.journey-api-key-field {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 420px) auto;
+  align-items: center;
+  gap: 12px;
+  width: min(760px, 100%);
+  margin: 14px auto 0;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 62%, #fff);
+}
+
+.journey-api-key-field label {
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.journey-api-key-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-xs);
+}
+
+.journey-api-key-field input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.journey-api-key-field small {
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .journey-api-key-field {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .journey-api-key-field small {
+    white-space: normal;
+  }
 }
 
 .journey-website-preview {

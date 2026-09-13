@@ -19,6 +19,7 @@ export interface NewRunPersonaOption {
 export interface NewRunSubmission {
   url: string;
   personaIds: string[];
+  apiKey: string;
 }
 
 export interface NewRunDialogProps {
@@ -37,7 +38,12 @@ function validateRunUrl(raw: string): URL | null {
   try {
     const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw);
     const url = new URL(hasScheme ? raw : `https://${raw}`);
-    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      !url.hostname ||
+      url.username ||
+      url.password
+    ) {
       return null;
     }
     return url;
@@ -47,15 +53,21 @@ function validateRunUrl(raw: string): URL | null {
 }
 
 export function NewRunDialog({ open, onClose, personas, onSubmit }: NewRunDialogProps) {
-  const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>(
-    () => personas.map((persona) => persona.id),
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>(() =>
+    personas.slice(0, 3).map((persona) => persona.id),
   );
   const [error, setError] = useState('');
 
   const togglePersona = (id: string) => {
-    setSelectedPersonaIds((previous) =>
-      previous.includes(id) ? previous.filter((candidate) => candidate !== id) : [...previous, id],
-    );
+    setSelectedPersonaIds((previous) => {
+      if (previous.includes(id)) return previous.filter((candidate) => candidate !== id);
+      if (previous.length >= 3) {
+        setError('Choose up to three perspectives.');
+        return previous;
+      }
+      setError('');
+      return [...previous, id];
+    });
   };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -71,8 +83,14 @@ export function NewRunDialog({ open, onClose, personas, onSubmit }: NewRunDialog
       setError('Choose at least one perspective.');
       return;
     }
+    const apiKey = String(formData.get('apiKey') ?? '').trim();
+    if (apiKey.length < 20) {
+      setError('Enter a valid Anthropic API key.');
+      return;
+    }
     setError('');
-    onSubmit({ url: url.href, personaIds: selectedPersonaIds });
+    event.currentTarget.reset();
+    onSubmit({ url: url.href, personaIds: selectedPersonaIds, apiKey });
   };
 
   return (
@@ -85,6 +103,17 @@ export function NewRunDialog({ open, onClose, personas, onSubmit }: NewRunDialog
       <form onSubmit={handleSubmit}>
         <label htmlFor="run-url">Website URL</label>
         <input id="run-url" name="url" placeholder="https://your-website.com" required />
+        <label htmlFor="run-api-key">Anthropic API key</label>
+        <input
+          id="run-api-key"
+          name="apiKey"
+          type="password"
+          placeholder="sk-ant-…"
+          autoComplete="new-password"
+          required
+          aria-describedby="run-api-key-help"
+        />
+        <small id="run-api-key-help">Used for this run only. Never saved.</small>
         <label>Choose perspectives</label>
         <div className="persona-options">
           {personas.map((persona) => (

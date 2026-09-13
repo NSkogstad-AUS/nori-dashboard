@@ -108,6 +108,7 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
           task: 'Explore the site and report anything that gets in the way of completing a typical task.',
           personaIds: submission.personaIds,
           idempotencyKey: crypto.randomUUID(),
+          apiKey: submission.apiKey,
         }),
       });
       if (!response.ok) {

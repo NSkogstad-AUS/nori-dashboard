@@ -52,6 +52,26 @@ try {
 const PORT = Number(process.env.PORT ?? 8081);
 const WORKER_ID = process.env.WORKER_ID ?? `worker-${randomUUID().slice(0, 8)}`;
 const POLL_INTERVAL_MS = Number(process.env.WORKER_POLL_INTERVAL_MS ?? 2000);
+const CREDENTIAL_TTL_MS = 60 * 60 * 1000;
+
+interface EphemeralCredential {
+  apiKey: string;
+  expiresAt: number;
+}
+
+const runCredentials = new Map<string, EphemeralCredential>();
+
+function purgeExpiredCredentials(): void {
+  const now = Date.now();
+  for (const [token, credential] of runCredentials) {
+    if (credential.expiresAt <= now) runCredentials.delete(token);
+  }
+}
+
+function credentialForRun(runToken: string): string | undefined {
+  purgeExpiredCredentials();
+  return runCredentials.get(runToken)?.apiKey;
+}
 
 let polling = true;
 let currentJobPromise: Promise<void> | null = null;
@@ -150,10 +170,13 @@ export async function processJob(
 
   const fixtureMode = options.allowPrivateTargets ?? process.env.WORKER_FIXTURE_MODE === 'true';
   const isFixedFixturePersona = persona.name === 'Phase 4 Fixture Runner';
-  const hasAnthropicKey = Boolean(process.env.ANTHROPIC_API_KEY?.trim());
+  const suppliedApiKey = credentialForRun(run.idempotencyKey);
+  const configuredApiKey = suppliedApiKey ?? process.env.ANTHROPIC_API_KEY?.trim();
   const model =
     options.model ??
-    (!isFixedFixturePersona && hasAnthropicKey ? new AnthropicActionModel() : undefined);
+    (!isFixedFixturePersona && configuredApiKey
+      ? new AnthropicActionModel({ apiKey: configuredApiKey })
+      : undefined);
   // The Phase 4 fixed script is hard-coded to the fixture site's DOM (see run-session.ts's
   // runFixedSessionScript) — it must never run against a real, non-fixture target. A real,
   // model-driven session has no such constraint: navigationOptions.allowPrivateTargets below
@@ -169,7 +192,7 @@ export async function processJob(
   }
   if (!model && !isFixedFixturePersona) {
     const message =
-      'Persona AI is not configured: set ANTHROPIC_API_KEY before starting the worker';
+      'Persona AI is not configured: enter an Anthropic API key or set ANTHROPIC_API_KEY';
     await recordSessionFailure(session.id, 'infrastructure_failure', message);
     await updateSessionState(session.id, session.state, 'failed');
     await updateRunState(run.id, run.state, 'failed');
@@ -204,8 +227,7 @@ export async function processJob(
         await Promise.all([heartbeatJob(job.id), touchHeartbeat(session.id)]);
         lastHeartbeatAt = Date.now();
       },
-      isCancellationRequested: async () =>
-        (await getRunCancellationState(run.id)) !== 'none',
+      isCancellationRequested: async () => (await getRunCancellationState(run.id)) !== 'none',
     };
 
     if (model) {
@@ -317,6 +339,62 @@ export function startWorker(): void {
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok', workerId: WORKER_ID }));
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/credentials') {
+      const internalToken = process.env.WORKER_INTERNAL_TOKEN?.trim();
+      const remoteAddress = req.socket.remoteAddress ?? '';
+      const isLoopback = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(remoteAddress);
+      if (
+        (internalToken && req.headers.authorization !== `Bearer ${internalToken}`) ||
+        (!internalToken && !isLoopback)
+      ) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+
+      let body = '';
+      let rejected = false;
+      req.setEncoding('utf8');
+      req.on('data', (chunk: string) => {
+        if (rejected) return;
+        body += chunk;
+        if (body.length > 2048) {
+          rejected = true;
+          res.writeHead(413, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: 'payload_too_large' }));
+        }
+      });
+      req.on('end', () => {
+        if (rejected) return;
+        try {
+          const value = JSON.parse(body) as { runToken?: unknown; apiKey?: unknown };
+          if (
+            typeof value.runToken !== 'string' ||
+            value.runToken.length < 1 ||
+            value.runToken.length > 200 ||
+            typeof value.apiKey !== 'string' ||
+            value.apiKey.trim().length < 20 ||
+            value.apiKey.length > 512
+          ) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ error: 'invalid_credential' }));
+            return;
+          }
+          purgeExpiredCredentials();
+          runCredentials.set(value.runToken, {
+            apiKey: value.apiKey.trim(),
+            expiresAt: Date.now() + CREDENTIAL_TTL_MS,
+          });
+          res.writeHead(204);
+          res.end();
+        } catch {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ error: 'invalid_json' }));
+        }
+      });
       return;
     }
 

@@ -125,14 +125,8 @@ export default function JourneysClient() {
 }
 
 function JourneysContent() {
-  const {
-    mode,
-    setMode,
-    setPlaying,
-    setCaptureMessage,
-    selectedPersonId,
-    setSelectedPersonId,
-  } = useJourneyView();
+  const { mode, setMode, setPlaying, setCaptureMessage, selectedPersonId, setSelectedPersonId } =
+    useJourneyView();
   const searchParams = useSearchParams();
   const router = useRouter();
   const runId = searchParams.get('runId');
@@ -141,12 +135,12 @@ function JourneysContent() {
 
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [websiteUrl, setWebsiteUrl] = useState(
-    () =>
-      searchParams.get('new') === '1'
-        ? ''
-        : (websites.find((website) => website.id === selectedWebsiteId)?.origin ?? ''),
+  const [websiteUrl, setWebsiteUrl] = useState(() =>
+    searchParams.get('new') === '1'
+      ? ''
+      : (websites.find((website) => website.id === selectedWebsiteId)?.origin ?? ''),
   );
+  const [apiKey, setApiKey] = useState('');
   const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
     () => new Set(personas.map((persona) => persona.id)),
   );
@@ -159,14 +153,14 @@ function JourneysContent() {
   const runRunning =
     !locallyCancelled &&
     (runPending ||
-    Boolean(
-      runId &&
+      Boolean(
+        runId &&
         !runProgressError &&
         (!runProgress ||
           !['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(
             runProgress.run.state,
           )),
-    ));
+      ));
   const cancellationRequested =
     cancelPending || runProgress?.run.cancelRequestState === 'cancel_requested';
   const runStatusLabel = locallyCancelled
@@ -175,15 +169,15 @@ function JourneysContent() {
       ? 'Cancelling…'
       : runRunning
         ? 'Running…'
-    : runProgress?.run.state === 'completed'
-      ? 'Journey complete'
-      : runProgress?.run.state === 'completed_with_errors'
-        ? 'Completed with issues'
-        : runProgress?.run.state === 'failed'
-          ? 'Run failed'
-          : runProgress?.run.state === 'cancelled'
-            ? 'Run cancelled'
-            : 'Ready to begin';
+        : runProgress?.run.state === 'completed'
+          ? 'Journey complete'
+          : runProgress?.run.state === 'completed_with_errors'
+            ? 'Completed with issues'
+            : runProgress?.run.state === 'failed'
+              ? 'Run failed'
+              : runProgress?.run.state === 'cancelled'
+                ? 'Run cancelled'
+                : 'Ready to begin';
   const historyWebsiteId = runProgress?.run.websiteId ?? selectedWebsiteId;
   const historyItems = localRuns
     .filter((run) => run.websiteId === historyWebsiteId)
@@ -283,6 +277,12 @@ function JourneysContent() {
       openNewRun();
       return;
     }
+    const suppliedApiKey = apiKey.trim();
+    if (!suppliedApiKey) {
+      announce('Enter your Anthropic API key to begin the run.');
+      document.getElementById('journey-api-key')?.focus();
+      return;
+    }
 
     setPlaying(false);
     setRunPending(true);
@@ -311,6 +311,7 @@ function JourneysContent() {
           task: 'Explore the site and report anything that gets in the way of completing a typical task.',
           personaIds: [dbPersona.id],
           idempotencyKey: crypto.randomUUID(),
+          apiKey: suppliedApiKey,
         }),
       });
       if (!response.ok) {
@@ -340,7 +341,17 @@ function JourneysContent() {
     } finally {
       setRunPending(false);
     }
-  }, [websiteUrl, selectedPersonId, websites, addWebsite, openNewRun, setPlaying, setMode, router]);
+  }, [
+    websiteUrl,
+    apiKey,
+    selectedPersonId,
+    websites,
+    addWebsite,
+    openNewRun,
+    setPlaying,
+    setMode,
+    router,
+  ]);
 
   const cancelRun = useCallback(async () => {
     if (!runId || cancelPending) return;
@@ -397,6 +408,20 @@ function JourneysContent() {
               spellCheck={false}
             />
           </div>
+          <div className="journey-api-key-field">
+            <label htmlFor="journey-api-key">Anthropic API key</label>
+            <input
+              id="journey-api-key"
+              type="password"
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              placeholder="sk-ant-…"
+              autoComplete="new-password"
+              spellCheck={false}
+              aria-describedby="journey-api-key-help"
+            />
+            <small id="journey-api-key-help">Used for this run only. Never saved.</small>
+          </div>
           <WebsitePreview rawUrl={websiteUrl} />
         </section>
         <div className="journey-step perspective-panel">
@@ -423,7 +448,7 @@ function JourneysContent() {
           />
           {mode === 'live' ? (
             runId ? (
-              <LiveRunView progress={runProgress} error={runProgressError} />
+              <LiveRunView progress={runProgress} error={runProgressError} apiKey={apiKey} />
             ) : (
               <LiveView onOpenFinding={openFinding} />
             )
@@ -609,11 +634,7 @@ function personaForId(id: string | null): Persona {
   return personas.find((candidate) => candidate.id === id) ?? personas[0]!;
 }
 
-function PersonaProcessVisual({
-  persona,
-}: {
-  persona: Persona;
-}) {
+function PersonaProcessVisual({ persona }: { persona: Persona }) {
   return (
     <aside className="process-persona" aria-label={`Selected persona: ${persona.name}`}>
       <div className="process-persona-photo">
@@ -938,11 +959,7 @@ function LiveRunTracker({
         </div>
       ) : null}
       <div aria-live="polite">
-        <ProcessBoard
-          persona={persona}
-          stages={stages}
-          cancelled={session.state === 'cancelled'}
-        />
+        <ProcessBoard persona={persona} stages={stages} cancelled={session.state === 'cancelled'} />
       </div>
     </section>
   );
@@ -1008,9 +1025,11 @@ function sessionStatusLabel(session: PersonaSession): string {
 function LiveRunView({
   progress,
   error,
+  apiKey,
 }: {
   progress: RunProgressResponse | null;
   error: string | null;
+  apiKey: string;
 }) {
   const router = useRouter();
   const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
@@ -1076,6 +1095,11 @@ function LiveRunView({
 
   const continueJourney = async () => {
     if (!progress || !sessionDetail || continuePending) return;
+    const suppliedApiKey = apiKey.trim();
+    if (!suppliedApiKey) {
+      setContinueError('Enter your Anthropic API key above before continuing.');
+      return;
+    }
     setContinuePending(true);
     setContinueError(null);
     const lastStep = sessionDetail.steps.at(-1);
@@ -1090,6 +1114,7 @@ function LiveRunView({
           task: progress.run.task,
           personaIds: [sessionDetail.persona.id],
           idempotencyKey: crypto.randomUUID(),
+          apiKey: suppliedApiKey,
         }),
       });
       if (!response.ok) {
