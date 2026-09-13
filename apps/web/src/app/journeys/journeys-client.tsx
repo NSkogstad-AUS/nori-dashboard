@@ -280,8 +280,8 @@ function JourneysContent() {
       return;
     }
     const suppliedApiKey = apiKey.trim();
-    if (!suppliedApiKey) {
-      const message = 'Enter your Anthropic API key to begin the run.';
+    if (suppliedApiKey.length < 20 || suppliedApiKey.length > 512) {
+      const message = 'Enter a valid Anthropic API key to begin the run.';
       setBeginError(message);
       announce(message);
       document.getElementById('journey-api-key')?.focus();
@@ -363,7 +363,7 @@ function JourneysContent() {
   ]);
 
   const cancelRun = useCallback(async () => {
-    if (!runId || cancelPending) return;
+    if (!runId || cancelPending) return false;
     setCancelPending(true);
     try {
       const response = await fetch(`/api/runs/${runId}/cancel`, { method: 'POST' });
@@ -371,15 +371,17 @@ function JourneysContent() {
         const error: { message?: string } = await response.json().catch(() => ({}));
         announce(error.message ?? 'Could not cancel the run.');
         setCancelPending(false);
-        return;
+        return false;
       }
       setCancelledRunId(runId);
       setCancelPending(false);
       announce('Run cancelled.');
+      return true;
     } catch (error) {
       console.error('Failed to cancel run', error);
       announce('Could not cancel the run.');
       setCancelPending(false);
+      return false;
     }
   }, [runId, cancelPending]);
 
@@ -462,7 +464,7 @@ function JourneysContent() {
                 error={runProgressError}
                 apiKey={apiKey}
                 onApiKeyChange={setApiKey}
-                onCancelRun={() => void cancelRun()}
+                onCancelRun={cancelRun}
                 cancelPending={cancellationRequested}
               />
             ) : (
@@ -1065,7 +1067,7 @@ function LiveRunView({
   error: string | null;
   apiKey: string;
   onApiKeyChange: (value: string) => void;
-  onCancelRun: () => void;
+  onCancelRun: () => Promise<boolean>;
   cancelPending: boolean;
 }) {
   const router = useRouter();
@@ -1076,6 +1078,11 @@ function LiveRunView({
   const [continuePending, setContinuePending] = useState(false);
   const [continueError, setContinueError] = useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
+  const [finishPending, setFinishPending] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
+  const [summaryVisible, setSummaryVisible] = useState(false);
+  const [finishedManually, setFinishedManually] = useState(false);
+  const summaryRef = useRef<HTMLElement>(null);
 
   const sessionDetail = progress?.sessions[selectedSessionIndex] ?? progress?.sessions[0];
   const frames = useMemo<LiveFrame[]>(
@@ -1085,6 +1092,27 @@ function LiveRunView({
       ) ?? [],
     [sessionDetail],
   );
+  const journeyLocations = useMemo(() => {
+    const locations = new Map<string, { label: string; actions: number }>();
+    for (const step of sessionDetail?.steps ?? []) {
+      const rawUrl = step.urlAfter ?? step.urlBefore;
+      if (!rawUrl) continue;
+      try {
+        const url = new URL(rawUrl);
+        const label = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}`;
+        const existing = locations.get(label);
+        locations.set(label, { label, actions: (existing?.actions ?? 0) + 1 });
+      } catch {
+        // A malformed historical URL should not prevent the rest of the summary rendering.
+      }
+    }
+    if (locations.size === 0 && progress?.run.url) {
+      const url = new URL(progress.run.url);
+      const label = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}`;
+      locations.set(label, { label, actions: sessionDetail?.steps.length ?? 0 });
+    }
+    return [...locations.values()];
+  }, [progress?.run.url, sessionDetail]);
 
   useEffect(() => {
     if (followLive && frames.length > 0) setSelectedFrameIndex(frames.length - 1);
@@ -1104,6 +1132,12 @@ function LiveRunView({
     ? Math.max(0, Math.floor((clock - lastActivityTimestamp) / 1000))
     : 0;
   const appearsStalled = isActive && secondsSinceAction >= 25;
+  const issueSteps = sessionDetail?.steps.filter((step) => step.outcome !== 'success') ?? [];
+  const observedSteps =
+    sessionDetail?.steps
+      .filter((step) => Boolean(step.observation))
+      .slice(-4)
+      .reverse() ?? [];
   const currentUrl = currentStep?.urlAfter ?? currentStep?.urlBefore ?? progress?.run.url;
   const viewportWidth = session?.device.viewportWidth ?? 1280;
   const viewportHeight = session?.device.viewportHeight ?? 800;
@@ -1137,6 +1171,15 @@ function LiveRunView({
     const interval = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(interval);
   }, [isActive]);
+
+  useEffect(() => {
+    if (!summaryVisible) return;
+    const frame = window.requestAnimationFrame(() => {
+      summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      summaryRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [summaryVisible]);
 
   const selectFrame = (index: number) => {
     setSelectedFrameIndex(index);
@@ -1191,6 +1234,30 @@ function LiveRunView({
           : 'Could not continue the journey.',
       );
       setContinuePending(false);
+    }
+  };
+
+  const finishJourney = async () => {
+    if (summaryVisible) {
+      summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (finishPending) return;
+    setFinishPending(true);
+    setFinishError(null);
+    try {
+      if (isActive) {
+        setFinishedManually(true);
+        const stopped = await onCancelRun();
+        if (!stopped) throw new Error('The run could not be stopped. Try again in a moment.');
+      }
+      setSummaryVisible(true);
+    } catch (finishFailure) {
+      setFinishError(
+        finishFailure instanceof Error ? finishFailure.message : 'Could not finish the journey.',
+      );
+    } finally {
+      setFinishPending(false);
     }
   };
 
@@ -1361,105 +1428,238 @@ function LiveRunView({
           </div>
         </div>
 
-        <aside className="live-activity-panel">
-          <div className="live-activity-heading">
-            <span>Journey activity</span>
-            <strong>{sessionDetail.steps.length} actions</strong>
-          </div>
-          <div className="live-current-thought">
-            <small>{currentStep ? 'What the persona observed' : 'Current state'}</small>
-            <p>
-              {currentStep?.observation ??
-                `${persona.name} is preparing to inspect what is visible on the page.`}
-            </p>
-          </div>
-          <ol className="live-action-list">
-            {sessionDetail.steps.map((step) => {
-              const artifactId = step.artifactIds.at(-1);
-              const linkedFrameIndex = artifactId
-                ? frames.findIndex((frame) => frame.artifactId === artifactId)
-                : -1;
-              const current = currentStep?.id === step.id;
-              return (
-                <li key={step.id} className={current ? 'is-current' : ''}>
-                  <button
-                    type="button"
-                    disabled={linkedFrameIndex < 0}
-                    onClick={() => selectFrame(linkedFrameIndex)}
-                    aria-current={current ? 'step' : undefined}
-                  >
-                    <span className={`live-action-index is-${step.outcome}`}>
-                      {step.outcome === 'success' ? '✓' : '!'}
-                    </span>
-                    <span>
-                      <strong>{STEP_ACTION_LABEL[step.action]}</strong>
-                      <small>{stepSummary(step)}</small>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-          {appearsStalled ? (
-            <div className="live-run-message is-waiting" role="status">
-              <strong>No new action for {secondsSinceAction}s</strong>
-              <span>The model may still respond, or you can stop safely and continue later.</span>
-              <button
-                type="button"
-                className="continue-journey-button"
-                onClick={onCancelRun}
-                disabled={cancelPending}
+        <div className="live-activity-column">
+          <aside className="live-activity-panel">
+            <div className="live-activity-heading">
+              <span>Journey activity</span>
+              <strong>{sessionDetail.steps.length} actions</strong>
+            </div>
+            <div className="live-current-thought">
+              <small>{currentStep ? 'What the persona observed' : 'Current state'}</small>
+              <p>
+                {currentStep?.observation ??
+                  `${persona.name} is preparing to inspect what is visible on the page.`}
+              </p>
+            </div>
+            <ol className="live-action-list">
+              {sessionDetail.steps.map((step) => {
+                const artifactId = step.artifactIds.at(-1);
+                const linkedFrameIndex = artifactId
+                  ? frames.findIndex((frame) => frame.artifactId === artifactId)
+                  : -1;
+                const current = currentStep?.id === step.id;
+                return (
+                  <li key={step.id} className={current ? 'is-current' : ''}>
+                    <button
+                      type="button"
+                      disabled={linkedFrameIndex < 0}
+                      onClick={() => selectFrame(linkedFrameIndex)}
+                      aria-current={current ? 'step' : undefined}
+                    >
+                      <span className={`live-action-index is-${step.outcome}`}>
+                        {step.outcome === 'success' ? '✓' : '!'}
+                      </span>
+                      <span>
+                        <strong>{STEP_ACTION_LABEL[step.action]}</strong>
+                        <small>{stepSummary(step)}</small>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+            {appearsStalled ? (
+              <div className="live-run-message is-waiting" role="status">
+                <strong>No new action for {secondsSinceAction}s</strong>
+                <span>The model may still respond, or you can stop safely and continue later.</span>
+                <button
+                  type="button"
+                  className="continue-journey-button"
+                  onClick={() => void onCancelRun()}
+                  disabled={cancelPending}
+                >
+                  {cancelPending ? 'Stopping…' : 'Stop this run'}
+                </button>
+              </div>
+            ) : null}
+            {session.state === 'failed' || session.state === 'cancelled' ? (
+              <div
+                className={`live-run-message ${session.state === 'failed' ? 'is-error' : 'is-cancelled'}`}
               >
-                {cancelPending ? 'Stopping…' : 'Stop this run'}
-              </button>
-            </div>
+                <strong>{session.state === 'failed' ? 'Journey stopped' : 'Run cancelled'}</strong>
+                <span>
+                  {session.state === 'failed'
+                    ? humanizeFailureMessage(session.failureMessage)
+                    : 'You can continue from the last page without starting over.'}
+                </span>
+                {isModelAuthenticationFailure(session.failureMessage) || !apiKey.trim() ? (
+                  <label className="live-retry-key">
+                    <span>Anthropic API key</span>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(event) => onApiKeyChange(event.target.value)}
+                      placeholder="sk-ant-…"
+                      autoComplete="new-password"
+                      spellCheck={false}
+                    />
+                    <small>Used only for the continued run. Never saved.</small>
+                  </label>
+                ) : null}
+                <button
+                  type="button"
+                  className="continue-journey-button"
+                  onClick={() => void continueJourney()}
+                  disabled={continuePending}
+                >
+                  {continuePending
+                    ? 'Continuing…'
+                    : session.state === 'cancelled'
+                      ? 'Continue from last page →'
+                      : 'Continue to next step →'}
+                </button>
+                {continueError ? <small role="alert">{continueError}</small> : null}
+              </div>
+            ) : session.state === 'completed' ? (
+              <div className="live-run-message is-complete">
+                <strong>Journey complete</strong>
+                <span>{sessionDetail.report?.summary ?? 'Evidence is ready to review.'}</span>
+              </div>
+            ) : null}
+          </aside>
+          <button
+            type="button"
+            className="finish-journey-button"
+            onClick={() => void finishJourney()}
+            disabled={finishPending || cancelPending}
+          >
+            {finishPending
+              ? 'Finishing…'
+              : summaryVisible
+                ? 'View journey summary'
+                : 'Finish Journey'}
+          </button>
+          {finishError ? (
+            <small className="finish-journey-error" role="alert">
+              {finishError}
+            </small>
           ) : null}
-          {session.state === 'failed' || session.state === 'cancelled' ? (
-            <div
-              className={`live-run-message ${session.state === 'failed' ? 'is-error' : 'is-cancelled'}`}
-            >
-              <strong>{session.state === 'failed' ? 'Journey stopped' : 'Run cancelled'}</strong>
-              <span>
-                {session.state === 'failed'
-                  ? humanizeFailureMessage(session.failureMessage)
-                  : 'You can continue from the last page without starting over.'}
-              </span>
-              {isModelAuthenticationFailure(session.failureMessage) || !apiKey.trim() ? (
-                <label className="live-retry-key">
-                  <span>Anthropic API key</span>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(event) => onApiKeyChange(event.target.value)}
-                    placeholder="sk-ant-…"
-                    autoComplete="new-password"
-                    spellCheck={false}
-                  />
-                  <small>Used only for the continued run. Never saved.</small>
-                </label>
-              ) : null}
-              <button
-                type="button"
-                className="continue-journey-button"
-                onClick={() => void continueJourney()}
-                disabled={continuePending}
-              >
-                {continuePending
-                  ? 'Continuing…'
-                  : session.state === 'cancelled'
-                    ? 'Continue from last page →'
-                    : 'Continue to next step →'}
-              </button>
-              {continueError ? <small role="alert">{continueError}</small> : null}
-            </div>
-          ) : session.state === 'completed' ? (
-            <div className="live-run-message is-complete">
-              <strong>Journey complete</strong>
-              <span>{sessionDetail.report?.summary ?? 'Evidence is ready to review.'}</span>
-            </div>
-          ) : null}
-        </aside>
+        </div>
       </div>
+      {summaryVisible ? (
+        <section
+          ref={summaryRef}
+          id="journey-summary"
+          className="journey-summary-report"
+          tabIndex={-1}
+          aria-labelledby="journey-summary-title"
+        >
+          <header className="journey-summary-header">
+            <span>Journey summary</span>
+            <div>
+              <h2 id="journey-summary-title">What {persona.name} experienced</h2>
+              <p>
+                {sessionDetail.report?.summary ??
+                  (finishedManually
+                    ? 'This summary covers the journey up to the point where you finished it.'
+                    : 'This summary is based on the actions and observations captured during the journey.')}
+              </p>
+            </div>
+          </header>
+
+          <div className="journey-summary-metrics" aria-label="Journey totals">
+            <article>
+              <strong>{sessionDetail.steps.length}</strong>
+              <span>actions observed</span>
+            </article>
+            <article>
+              <strong>{journeyLocations.length}</strong>
+              <span>pages visited</span>
+            </article>
+            <article>
+              <strong>{frames.length}</strong>
+              <span>moments captured</span>
+            </article>
+            <article className={issueSteps.length > 0 ? 'has-issues' : ''}>
+              <strong>{issueSteps.length}</strong>
+              <span>issues encountered</span>
+            </article>
+          </div>
+
+          <div className="journey-summary-grid">
+            <article className="journey-summary-card journey-summary-issues">
+              <span className="journey-summary-card-label">Where issues arose</span>
+              <h3>
+                {issueSteps.length > 0
+                  ? 'Moments that need attention'
+                  : 'No blocked actions recorded'}
+              </h3>
+              {issueSteps.length > 0 ? (
+                <ol>
+                  {issueSteps.map((step) => (
+                    <li key={step.id}>
+                      <strong>{STEP_ACTION_LABEL[step.action]}</strong>
+                      <span>{step.observation ?? stepSummary(step)}</span>
+                      <small>{step.urlAfter ?? step.urlBefore ?? progress.run.url}</small>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>
+                  Every recorded action completed successfully. Review the observations for softer
+                  signs of confusion or friction.
+                </p>
+              )}
+            </article>
+
+            <article className="journey-summary-card">
+              <span className="journey-summary-card-label">Journey path</span>
+              <h3>Pages and activity</h3>
+              <ol className="journey-summary-path">
+                {journeyLocations.map((location, index) => (
+                  <li key={location.label}>
+                    <span>{String(index + 1).padStart(2, '0')}</span>
+                    <div>
+                      <strong>{location.label}</strong>
+                      <small>
+                        {location.actions} {location.actions === 1 ? 'action' : 'actions'}
+                      </small>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </article>
+
+            <article className="journey-summary-card">
+              <span className="journey-summary-card-label">Key observations</span>
+              <h3>What the persona noticed</h3>
+              {observedSteps.length > 0 ? (
+                <ul className="journey-summary-observations">
+                  {observedSteps.map((step) => (
+                    <li key={step.id}>{step.observation}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No written observations were captured before the journey ended.</p>
+              )}
+            </article>
+
+            <article className="journey-summary-card journey-summary-next-step">
+              <span className="journey-summary-card-label">Recommended review</span>
+              <h3>
+                {issueSteps.length > 0
+                  ? 'Start with failed interactions'
+                  : 'Review the captured moments'}
+              </h3>
+              <p>
+                {issueSteps.length > 0
+                  ? 'Reproduce each highlighted action, confirm what prevented progress, and compare it with the persona’s observation.'
+                  : 'Use the captured moments to check whether the page hierarchy, labels, and next actions were as clear as they appeared.'}
+              </p>
+            </article>
+          </div>
+        </section>
+      ) : null}
     </section>
   );
 }

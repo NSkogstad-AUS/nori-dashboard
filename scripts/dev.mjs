@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process';
+import console from 'node:console';
+import process from 'node:process';
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const processes = [

@@ -73,10 +73,23 @@ export async function POST(request: NextRequest) {
     const body: unknown = await request.json().catch(() => null);
     const parsed = createRunRequestSchema.safeParse(body);
     if (!parsed.success) {
+      const fields = [
+        ...new Set(parsed.error.issues.map((issue) => String(issue.path[0] ?? 'run'))),
+      ];
+      const message = fields.includes('apiKey')
+        ? 'Enter a valid Anthropic API key.'
+        : fields.includes('personaIds')
+          ? 'Choose between one and three perspectives.'
+          : fields.includes('url')
+            ? 'Enter a valid website URL.'
+            : fields.includes('websiteId')
+              ? 'Choose a website before beginning the run.'
+              : `Check the ${fields.join(', ')} ${fields.length === 1 ? 'field' : 'fields'} and try again.`;
+      console.warn('POST /api/runs rejected fields:', fields.join(', '));
       return errorResponse(
         {
           code: 'validation_failed',
-          message: 'Invalid run payload.',
+          message,
           details: { issues: parsed.error.issues },
         },
         400,
