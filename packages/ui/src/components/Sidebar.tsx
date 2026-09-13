@@ -74,19 +74,32 @@ export function Sidebar({
 }: SidebarProps) {
   return (
     <aside className="rail">
-      <a className="wordmark" href="/" aria-label="Nori">
-        <span>n.</span>
-        <strong>Nori</strong>
-      </a>
-      <button
-        type="button"
-        className="rail-toggle circle"
-        aria-label="Toggle sidebar"
-        aria-expanded={!collapsed}
-        onClick={onToggleCollapsed}
-      >
-        ☰
-      </button>
+      <div className="rail-header">
+        <a className="wordmark" href="/" aria-label="Nori home">
+          <img src="/nori-bird.svg" alt="" aria-hidden="true" />
+          <strong>Nori</strong>
+        </a>
+        <button
+          type="button"
+          className="rail-toggle circle"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          onClick={onToggleCollapsed}
+        >
+          <svg
+            aria-hidden="true"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          >
+            <path d="M3.25 4.25h9.5M3.25 8h9.5M3.25 11.75h9.5" />
+          </svg>
+        </button>
+      </div>
       <nav aria-label="Workspace">
         {navItems.map((item) => {
           const content = (

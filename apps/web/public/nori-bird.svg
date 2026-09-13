@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="120 140 1040 920" role="img" aria-labelledby="title">
+  <title id="title">Nori bird</title>
+  <defs>
+    <mask id="eye-cutout" maskUnits="userSpaceOnUse" x="120" y="140" width="1040" height="920">
+      <rect x="120" y="140" width="1040" height="920" fill="white"/>
+      <circle cx="870" cy="350" r="43" fill="black"/>
+    </mask>
+  </defs>
+  <path
+    fill="#1d1d24"
+    mask="url(#eye-cutout)"
+    d="M160 967C246 851 350 708 487 575c107-104 190-164 200-256 11-101 91-143 183-140 67 2 106 32 132 78 22 39 55 62 97 81l28 13-29 17c-44 24-76 40-101 70-18 22-20 59-21 113-3 115-42 202-124 258-69 47-151 61-242 49l110 123h109v33H487v-33h132l-94-126-34 4c-112 40-222 78-331 108Z"
+  />
+</svg>

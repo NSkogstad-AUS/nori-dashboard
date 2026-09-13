@@ -160,25 +160,28 @@ small {
   padding-inline: 15px;
 }
 
-.wordmark {
+.rail-header {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 7px;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
 }
 
-.wordmark > span {
-  font-family: var(--font-display);
-  font-size: 22px;
-  letter-spacing: -1px;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-sm);
-  background: var(--ink);
-  color: var(--paper);
-  padding-right: 2px;
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.wordmark > img {
+  display: block;
+  width: 39px;
+  height: 39px;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
 .wordmark strong {
@@ -192,6 +195,11 @@ small {
   padding: 0;
 }
 
+.collapsed .rail-header {
+  flex-direction: column;
+  gap: 14px;
+}
+
 .collapsed .wordmark strong,
 .collapsed .rail-link strong,
 .collapsed .website-link strong,
@@ -201,12 +209,19 @@ small {
 }
 
 .rail-toggle {
-  align-self: flex-start;
-  margin-left: 5px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 5px 14px rgb(29 29 36 / 5%);
 }
 
 .collapsed .rail-toggle {
-  margin-left: 0;
+  align-self: center;
 }
 
 .rail nav {
@@ -4087,7 +4102,7 @@ form > .pill {
   .rail {
     padding: 20px 8px;
   }
-  .wordmark > span {
+  .wordmark > img {
     width: 33px;
     height: 33px;
   }
