@@ -1,69 +1,54 @@
 'use client';
 
-// Client half of the Server Component split in page.tsx — owns the interactive bits (card
-// click → select + navigate, the "Add website" dialog and its POST /api/websites call) while
-// the initial website list is server-fetched, real data (see plan/PHASE_3_PLAN.md section 4.5).
-
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EmptyState, NewWebsiteDialog, type NewWebsiteSubmission } from '@nori/ui';
+import { EmptyState } from '@nori/ui';
 import { useWorkspace } from '../../context/workspace-context';
+import { readLocalRuns, type LocalRun } from '../../lib/local-runs';
 import type { Website } from '@nori/contracts';
 
 const COLOR_CLASSES = ['peach', 'violet', 'blue', 'lime'];
 
+function runStateLabel(state: LocalRun['state']): string {
+  if (state === 'completed') return 'Journey complete';
+  if (state === 'completed_with_errors') return 'Completed with issues';
+  if (state === 'failed') return 'Journey failed';
+  if (state === 'cancelled') return 'Journey cancelled';
+  return 'Journey running';
+}
+
 export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Website[] }) {
   const router = useRouter();
-  const { websites, addWebsite, setSelectedWebsiteId } = useWorkspace();
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  // WorkspaceContext is seeded from the same server fetch (see layout.tsx) and is the shared,
-  // up-to-date source once a website is added — falls back to the page's own server-fetched
-  // list only if context somehow hasn't picked it up yet (shouldn't normally happen since both
-  // read the same initial data).
+  const { websites, setSelectedWebsiteId } = useWorkspace();
+  const [localRuns, setLocalRuns] = useState<LocalRun[]>([]);
   const displayedWebsites = websites.length > 0 ? websites : initialWebsites;
 
-  // Errors are surfaced inside NewWebsiteDialog itself (it catches whatever this throws and
-  // shows it in its own form-error region) — nothing further to do with them here beyond
-  // closing the dialog on success.
-  const handleSubmit = async (submission: NewWebsiteSubmission) => {
-    const response = await fetch('/api/websites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(submission),
-    });
-    if (!response.ok) {
-      const error: unknown = await response.json().catch(() => null);
-      const message =
-        error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
-          ? error.message
-          : 'Could not add this website.';
-      throw new Error(message);
-    }
-    const website = (await response.json()) as Website;
-    addWebsite(website);
-    setDialogOpen(false);
+  useEffect(() => setLocalRuns(readLocalRuns()), []);
+
+  const openJourney = (site: Website) => {
+    setSelectedWebsiteId(site.id);
+    const latestRun = localRuns.find((run) => run.websiteId === site.id);
+    router.push(
+      latestRun ? `/journeys?runId=${latestRun.runId}&from=home#journey-results` : '/journeys',
+    );
   };
 
   if (displayedWebsites.length === 0) {
     return (
-      <>
-        <EmptyState
-          tone="empty"
-          title="No websites tracked yet"
-          description="Add a website to start creating sample runs against it."
-          action={
-            <button type="button" className="dark pill" onClick={() => setDialogOpen(true)}>
-              + Add website
-            </button>
-          }
-        />
-        <NewWebsiteDialog
-          open={dialogOpen}
-          onClose={() => setDialogOpen(false)}
-          onSubmit={handleSubmit}
-        />
-      </>
+      <EmptyState
+        tone="empty"
+        title="No websites tracked yet"
+        description="Start a journey with a website URL and it will appear here."
+        action={
+          <button
+            type="button"
+            className="dark pill"
+            onClick={() => router.push('/journeys?new=1')}
+          >
+            + Add website
+          </button>
+        }
+      />
     );
   }
 
@@ -72,24 +57,27 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
       <div className="view-intro home-sites-intro">
         <div>
           <strong>Tracked websites</strong>
-          <p>Choose a website to create a new journey.</p>
+          <p>Open a saved journey or choose a website to create one.</p>
         </div>
-        <button type="button" className="dark pill" onClick={() => setDialogOpen(true)}>
+        <button
+          type="button"
+          className="dark pill"
+          onClick={() => router.push('/journeys?new=1')}
+        >
           + Add website
         </button>
       </div>
       <div className="site-grid">
         {displayedWebsites.map((site, index) => {
           const colorClass = COLOR_CLASSES[index % COLOR_CLASSES.length];
+          const siteRuns = localRuns.filter((run) => run.websiteId === site.id);
+          const latestRun = siteRuns[0];
           return (
             <button
               key={site.id}
               type="button"
               className="website-card"
-              onClick={() => {
-                setSelectedWebsiteId(site.id);
-                router.push('/journeys');
-              }}
+              onClick={() => openJourney(site)}
             >
               <span className={`site-avatar ${colorClass}`}>
                 {site.displayName[0]?.toUpperCase() ?? '?'}
@@ -97,18 +85,17 @@ export function WebsitesPageClient({ initialWebsites }: { initialWebsites: Websi
               <h2>{site.displayName}</h2>
               <p>{new URL(site.origin).hostname}</p>
               <footer>
-                <span>Ready to test</span>
-                <span>Start a journey ↗</span>
+                <span>
+                  {latestRun
+                    ? `${siteRuns.length} saved ${siteRuns.length === 1 ? 'journey' : 'journeys'} · ${runStateLabel(latestRun.state)}`
+                    : 'No saved journeys'}
+                </span>
+                <span>{latestRun ? 'Open latest journey ↗' : 'Start a journey ↗'}</span>
               </footer>
             </button>
           );
         })}
       </div>
-      <NewWebsiteDialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        onSubmit={handleSubmit}
-      />
     </>
   );
 }

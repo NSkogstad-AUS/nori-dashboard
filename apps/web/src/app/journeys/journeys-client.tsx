@@ -30,6 +30,7 @@ import {
   stageIndexForFinding,
 } from '../../lib/journey-derivations';
 import { validateWebsiteUrl } from '../../lib/validate-url';
+import { saveLocalRun, updateLocalRunState } from '../../lib/local-runs';
 import type {
   Finding,
   Persona,
@@ -136,7 +137,10 @@ function JourneysContent() {
   const [findingOpen, setFindingOpen] = useState<Finding | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [websiteUrl, setWebsiteUrl] = useState(
-    () => websites.find((website) => website.id === selectedWebsiteId)?.origin ?? '',
+    () =>
+      searchParams.get('new') === '1'
+        ? ''
+        : (websites.find((website) => website.id === selectedWebsiteId)?.origin ?? ''),
   );
   const [attachedPersonaIds, setAttachedPersonaIds] = useState<Set<string>>(
     () => new Set(personas.map((persona) => persona.id)),
@@ -180,12 +184,28 @@ function JourneysContent() {
   }, [selectedPersonId, setSelectedPersonId]);
 
   useEffect(() => {
+    if (searchParams.get('from') !== 'home' || !runId) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById('journey-results')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [runId, searchParams]);
+
+  useEffect(() => {
     if (
       runProgress &&
       ['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(runProgress.run.state)
     ) {
       setCancelPending(false);
     }
+  }, [runProgress]);
+
+  useEffect(() => {
+    if (!runProgress) return;
+    updateLocalRunState(runProgress.run.id, runProgress.run.state, runProgress.run.updatedAt);
   }, [runProgress]);
 
   const toggleAttached = (id: string) => {
@@ -279,6 +299,16 @@ function JourneysContent() {
         return;
       }
       const { runId: newRunId }: { runId: string } = await response.json();
+      const now = new Date().toISOString();
+      saveLocalRun({
+        runId: newRunId,
+        websiteId,
+        url: validUrl.href,
+        personaName: selectedPersona.name,
+        state: 'queued',
+        createdAt: now,
+        updatedAt: now,
+      });
       announce('Run started.');
       // The tracker renders in Overview mode (see the mode/runId branch below), so switch back
       // to it — otherwise a run started from Live view would start invisibly.
@@ -355,7 +385,7 @@ function JourneysContent() {
             attachedPersonaIds={attachedPersonaIds}
           />
         </div>
-        <div className="journey-step journey-experience">
+        <div id="journey-results" className="journey-step journey-experience">
           <JourneyViewSwitch
             mode={mode}
             onChange={setMode}
