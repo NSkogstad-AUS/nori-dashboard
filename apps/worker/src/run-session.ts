@@ -117,13 +117,24 @@ async function recordStep(
   urlBefore: string | null,
   urlAfter: string | null,
   observation: string | null,
+  cursorPosition: { x: number; y: number } | null = null,
 ) {
   // Every step recorded in this file happens while the browser is actively navigating/acting —
   // main.ts only calls into runFixedSessionScript/runPersonaAgentSession after transitioning the
   // session to 'exploring', and the 'analysing' stage (producing the persona report) happens
   // afterward, outside this file — so 'exploring' is factually correct for every call site here,
   // not a placeholder.
-  return appendStep({ sessionId, action, outcome, urlBefore, urlAfter, observation, sessionState: 'exploring' });
+  return appendStep({
+    sessionId,
+    action,
+    outcome,
+    urlBefore,
+    urlAfter,
+    observation,
+    sessionState: 'exploring',
+    cursorX: cursorPosition?.x,
+    cursorY: cursorPosition?.y,
+  });
 }
 
 async function attachScreenshot(sessionId: string, stepId: string, page: Page): Promise<Buffer> {
@@ -449,6 +460,25 @@ async function observePage(page: Page): Promise<PageObservation & { screenshotBa
   };
 }
 
+async function moveMouseToElement(
+  page: Page,
+  elementId: string,
+): Promise<{ x: number; y: number } | null> {
+  const element = page.locator(`[data-nori-id="${elementId}"]`);
+  const box = await element.boundingBox({ timeout: 5000 });
+  if (!box) return null;
+
+  const viewport = page.viewportSize();
+  const x = Math.round(box.x + box.width / 2);
+  const y = Math.round(box.y + box.height / 2);
+  const position = {
+    x: viewport ? Math.max(0, Math.min(viewport.width, x)) : Math.max(0, x),
+    y: viewport ? Math.max(0, Math.min(viewport.height, y)) : Math.max(0, y),
+  };
+  await page.mouse.move(position.x, position.y, { steps: 14 });
+  return position;
+}
+
 async function executeAgentAction(
   action: BrowserAction,
   decisionObservation: string,
@@ -460,18 +490,21 @@ async function executeAgentAction(
   consumeAction(budget);
   const urlBefore = page.url();
   let step: Step | null = null;
+  let cursorPosition: { x: number; y: number } | null = null;
   try {
     switch (action.kind) {
       case 'navigate':
         await page.goto(action.url, { waitUntil: 'load', timeout: 0 });
         break;
       case 'click':
+        cursorPosition = await moveMouseToElement(page, action.elementId);
         await page.locator(`[data-nori-id="${action.elementId}"]`).click({ timeout: 5000 });
         break;
       case 'scroll':
         await page.mouse.wheel(0, action.deltaY);
         break;
       case 'type':
+        cursorPosition = await moveMouseToElement(page, action.elementId);
         await page.locator(`[data-nori-id="${action.elementId}"]`).fill(action.text);
         break;
       case 'wait':
@@ -488,7 +521,15 @@ async function executeAgentAction(
       action.kind === 'finish'
         ? `${decisionObservation} ${action.summary}`.slice(0, 2000)
         : decisionObservation;
-    step = await recordStep(session.id, action.kind, 'success', urlBefore, page.url(), observation);
+    step = await recordStep(
+      session.id,
+      action.kind,
+      'success',
+      urlBefore,
+      page.url(),
+      observation,
+      cursorPosition,
+    );
     if (action.kind !== 'finish' && action.kind !== 'wait') {
       await attachScreenshot(session.id, step.id, page);
     }
@@ -502,6 +543,7 @@ async function executeAgentAction(
         urlBefore,
         page.url(),
         error instanceof Error ? error.message : String(error),
+        cursorPosition,
       );
     }
     throw error;

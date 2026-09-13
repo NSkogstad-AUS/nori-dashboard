@@ -288,7 +288,11 @@ function JourneysContent() {
             beginRunPending={runPending}
           />
           {mode === 'live' ? (
-            <LiveView onOpenFinding={openFinding} />
+            runId ? (
+              <LiveRunView runId={runId} />
+            ) : (
+              <LiveView onOpenFinding={openFinding} />
+            )
           ) : runId ? (
             <LiveRunTracker runId={runId} />
           ) : (
@@ -658,10 +662,9 @@ interface RunProgressResponse {
 
 const TERMINAL_SESSION_STATES: readonly SessionState[] = ['completed', 'failed', 'cancelled'];
 
-function LiveRunTracker({ runId }: { runId: string }) {
+function useRunProgress(runId: string) {
   const [progress, setProgress] = useState<RunProgressResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -684,9 +687,7 @@ function LiveRunTracker({ runId }: { runId: string }) {
           data.run.state === 'completed_with_errors' ||
           data.run.state === 'failed' ||
           data.run.state === 'cancelled';
-        if (!isTerminal) {
-          timeoutId = setTimeout(poll, 2000);
-        }
+        if (!isTerminal) timeoutId = setTimeout(poll, 1200);
       } catch {
         if (!cancelled) setError('Could not load run progress.');
       }
@@ -698,6 +699,13 @@ function LiveRunTracker({ runId }: { runId: string }) {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [runId]);
+
+  return { progress, error };
+}
+
+function LiveRunTracker({ runId }: { runId: string }) {
+  const { progress, error } = useRunProgress(runId);
+  const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
 
   if (error) {
     return (
@@ -848,6 +856,296 @@ function failureRecoveryMessage(message: string | null): string {
     return 'Check the target website, then start a new run';
   }
   return 'Start a new run after checking the worker';
+}
+
+interface LiveFrame {
+  artifactId: string;
+  step: Step;
+}
+
+function sessionStatusLabel(session: PersonaSession): string {
+  if (session.state === 'completed') return 'Journey complete';
+  if (session.state === 'failed') return 'Journey stopped';
+  if (session.state === 'cancelled') return 'Run cancelled';
+  if (session.state === 'analysing') return 'Reviewing evidence';
+  if (session.state === 'exploring') return 'Exploring now';
+  return 'Preparing browser';
+}
+
+function LiveRunView({ runId }: { runId: string }) {
+  const { progress, error } = useRunProgress(runId);
+  const [selectedSessionIndex, setSelectedSessionIndex] = useState(0);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
+  const [followLive, setFollowLive] = useState(true);
+  const [unavailableArtifactId, setUnavailableArtifactId] = useState<string | null>(null);
+
+  const sessionDetail = progress?.sessions[selectedSessionIndex] ?? progress?.sessions[0];
+  const frames = useMemo<LiveFrame[]>(
+    () =>
+      sessionDetail?.steps.flatMap((step) =>
+        step.artifactIds.map((artifactId) => ({ artifactId, step })),
+      ) ?? [],
+    [sessionDetail],
+  );
+
+  useEffect(() => {
+    if (followLive && frames.length > 0) setSelectedFrameIndex(frames.length - 1);
+  }, [followLive, frames.length]);
+
+  const frameIndex = Math.max(0, Math.min(selectedFrameIndex, frames.length - 1));
+  const currentFrame = frames[frameIndex];
+  const currentStep = currentFrame?.step;
+  const persona = sessionDetail?.persona;
+  const session = sessionDetail?.session;
+  const latest = frameIndex === frames.length - 1;
+  const isActive = session ? !TERMINAL_SESSION_STATES.includes(session.state) : false;
+  const currentUrl = currentStep?.urlAfter ?? currentStep?.urlBefore ?? progress?.run.url;
+  const cursorStep = frames
+    .slice(0, frameIndex + 1)
+    .reverse()
+    .find((frame) => frame.step.cursorX !== null && frame.step.cursorY !== null)?.step;
+  const fallbackCursor = currentStep
+    ? {
+        x: 14 + ((currentStep.sequence * 23) % 68),
+        y: 18 + ((currentStep.sequence * 31) % 62),
+      }
+    : { x: 10, y: 12 };
+  const cursorX = cursorStep?.cursorX
+    ? (cursorStep.cursorX / session.device.viewportWidth) * 100
+    : fallbackCursor.x;
+  const cursorY = cursorStep?.cursorY
+    ? (cursorStep.cursorY / session.device.viewportHeight) * 100
+    : fallbackCursor.y;
+  const cursorStyle = {
+    '--cursor-x': Math.max(1, Math.min(96, cursorX)),
+    '--cursor-y': Math.max(1, Math.min(94, cursorY)),
+  } as React.CSSProperties;
+
+  const selectFrame = (index: number) => {
+    setSelectedFrameIndex(index);
+    setFollowLive(index === frames.length - 1);
+    setUnavailableArtifactId(null);
+  };
+
+  if (error) {
+    return (
+      <section className="transmission real-live-view">
+        <div className="live-empty" role="alert">
+          <span aria-hidden="true">×</span>
+          <strong>Live view unavailable</strong>
+          <p>{error}</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (!progress || !sessionDetail || !persona || !session) {
+    return (
+      <section className="transmission real-live-view" aria-live="polite">
+        <div className="live-empty is-loading">
+          <span aria-hidden="true" />
+          <strong>Connecting to the browser</strong>
+          <p>The first frame will appear when the persona opens the website.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="transmission real-live-view">
+      <header className="transmission-header real-live-header">
+        <div>
+          <img className="live-persona-avatar" src={PERSONA_PHOTO_SRC[persona.name] ?? ''} alt="" />
+          <span>
+            <small>Watching through their perspective</small>
+            <h2>{persona.name}&rsquo;s live journey</h2>
+          </span>
+        </div>
+        <div className="live-header-actions">
+          <span className={`transmission-status${isActive ? ' is-live' : ''}`}>
+            <i />
+            {sessionStatusLabel(session)}
+          </span>
+          {!latest && frames.length > 0 ? (
+            <button
+              type="button"
+              className="live-follow-button"
+              onClick={() => {
+                setFollowLive(true);
+                setSelectedFrameIndex(frames.length - 1);
+              }}
+            >
+              Jump to latest
+            </button>
+          ) : null}
+        </div>
+      </header>
+
+      {progress.sessions.length > 1 ? (
+        <div className="live-persona-tabs" role="tablist" aria-label="Persona sessions">
+          {progress.sessions.map((detail, index) => (
+            <button
+              key={detail.session.id}
+              type="button"
+              role="tab"
+              aria-selected={index === selectedSessionIndex}
+              onClick={() => {
+                setSelectedSessionIndex(index);
+                setSelectedFrameIndex(0);
+                setFollowLive(true);
+              }}
+            >
+              {detail.persona.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="real-live-layout">
+        <div className="live-browser-column">
+          <div className="live-browser-window">
+            <div className="live-browser-bar">
+              <span className="live-browser-dots" aria-hidden="true">
+                <i /> <i /> <i />
+              </span>
+              <span className="live-browser-address" title={currentUrl}>
+                <i aria-hidden="true">⌁</i>
+                {currentUrl
+                  ? new URL(currentUrl).hostname + new URL(currentUrl).pathname
+                  : 'Opening site…'}
+              </span>
+              <span className={`live-frame-count${isActive && latest ? ' is-live' : ''}`}>
+                {isActive && latest ? 'LIVE' : `${frameIndex + 1} / ${Math.max(frames.length, 1)}`}
+              </span>
+            </div>
+            <div
+              className="live-browser-screen"
+              aria-live="polite"
+              style={{ aspectRatio: `${session.device.viewportWidth} / ${session.device.viewportHeight}` }}
+            >
+              {currentFrame && unavailableArtifactId !== currentFrame.artifactId ? (
+                <img
+                  key={currentFrame.artifactId}
+                  src={`/api/artifacts/${currentFrame.artifactId}`}
+                  alt={`Screenshot of ${currentUrl ?? 'the website'} captured while ${persona.name} ${STEP_ACTION_LABEL[currentFrame.step.action].toLowerCase()}`}
+                  onError={() => setUnavailableArtifactId(currentFrame.artifactId)}
+                />
+              ) : (
+                <div className="live-empty">
+                  <span aria-hidden="true">{frames.length === 0 ? '◫' : '×'}</span>
+                  <strong>
+                    {frames.length === 0 ? 'Waiting for the first frame' : 'Frame unavailable'}
+                  </strong>
+                  <p>
+                    {frames.length === 0
+                      ? `${persona.name} is ${sessionStatusLabel(session).toLowerCase()}.`
+                      : 'The screenshot could not be loaded from artifact storage.'}
+                  </p>
+                </div>
+              )}
+              {currentFrame ? (
+                <div className="live-persona-cursor" style={cursorStyle} aria-hidden="true">
+                  {currentStep?.action === 'click' ? (
+                    <i key={currentStep.id} className="live-cursor-click" />
+                  ) : null}
+                  <svg width="22" height="27" viewBox="0 0 22 27" fill="none">
+                    <path
+                      d="M2 1.5L19.3 16.2L11.1 17.1L7.2 24.7L2 1.5Z"
+                      fill="currentColor"
+                      stroke="white"
+                      strokeWidth="2"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span>{persona.name}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="live-playback">
+            <div>
+              <button
+                type="button"
+                className="circle"
+                aria-label="Previous captured moment"
+                disabled={frameIndex === 0 || frames.length === 0}
+                onClick={() => selectFrame(frameIndex - 1)}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="circle"
+                aria-label="Next captured moment"
+                disabled={latest || frames.length === 0}
+                onClick={() => selectFrame(frameIndex + 1)}
+              >
+                →
+              </button>
+            </div>
+            <span>
+              {currentStep
+                ? `${STEP_ACTION_LABEL[currentStep.action]} · moment ${currentStep.sequence + 1}`
+                : 'No moments captured yet'}
+            </span>
+          </div>
+        </div>
+
+        <aside className="live-activity-panel">
+          <div className="live-activity-heading">
+            <span>Journey activity</span>
+            <strong>{sessionDetail.steps.length} actions</strong>
+          </div>
+          <div className="live-current-thought">
+            <small>{currentStep ? 'What the persona observed' : 'Current state'}</small>
+            <p>
+              {currentStep?.observation ??
+                `${persona.name} is preparing to inspect what is visible on the page.`}
+            </p>
+          </div>
+          <ol className="live-action-list">
+            {sessionDetail.steps.map((step) => {
+              const artifactId = step.artifactIds.at(-1);
+              const linkedFrameIndex = artifactId
+                ? frames.findIndex((frame) => frame.artifactId === artifactId)
+                : -1;
+              const current = currentStep?.id === step.id;
+              return (
+                <li key={step.id} className={current ? 'is-current' : ''}>
+                  <button
+                    type="button"
+                    disabled={linkedFrameIndex < 0}
+                    onClick={() => selectFrame(linkedFrameIndex)}
+                    aria-current={current ? 'step' : undefined}
+                  >
+                    <span className={`live-action-index is-${step.outcome}`}>
+                      {step.outcome === 'success' ? '✓' : '!'}
+                    </span>
+                    <span>
+                      <strong>{STEP_ACTION_LABEL[step.action]}</strong>
+                      <small>{stepSummary(step)}</small>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+          {session.state === 'failed' ? (
+            <div className="live-run-message is-error">
+              <strong>Journey stopped</strong>
+              <span>{humanizeFailureMessage(session.failureMessage)}</span>
+            </div>
+          ) : session.state === 'completed' ? (
+            <div className="live-run-message is-complete">
+              <strong>Journey complete</strong>
+              <span>{sessionDetail.report?.summary ?? 'Evidence is ready to review.'}</span>
+            </div>
+          ) : null}
+        </aside>
+      </div>
+    </section>
+  );
 }
 
 interface LiveViewProps {

@@ -1,7 +1,7 @@
 # Phase 5 Plan — One real persona agent, end to end
 
 Created: 12 September 2026
-Status: Implementation complete; live Claude acceptance pending a configured API key.
+Status: Complete, including live Claude action selection and persisted screenshot playback.
 Parent: [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md), Phase 5 checklist.
 
 ## Purpose
@@ -45,8 +45,10 @@ first-time visitor. The first task remains the owned fixture's newsletter subscr
       report reconciles with stored steps.
 - [x] Add policy tests for prompt-injection text, invalid actions, sensitive typing, repeated
       actions, and the hard cost cap.
-- [ ] Run the same fixture journey through the live Anthropic API. The local `.env` currently has
-      the placeholder `ANTHROPIC_API_KEY`, so this external acceptance check cannot run yet.
+- [x] Verify the live Anthropic adapter with the configured API key and a supported strict-tool
+      schema.
+- [x] Render real, workspace-scoped screenshot artifacts in Live view with an auto-following action
+      timeline and historical frame navigation.
 
 ## Acceptance gate
 
@@ -59,6 +61,16 @@ live Anthropic adapter and configured key using:
 npm run dev:fixture-site
 npm run run-agent-fixture --workspace=apps/worker
 ```
+
+### 2026-09-13 — Live browser view
+
+Replaced the Journeys page's simulated Live view for real `?runId=` sessions with the screenshots
+captured by the Playwright worker. The view polls active runs, follows the newest screenshot,
+shows the selected persona and current URL, and lets people revisit any earlier captured action
+from the timeline. Added a private `GET /api/artifacts/[id]` route backed by a workspace-scoped
+artifact query; storage paths are contained within the configured artifact directory, and expired
+or missing files return an unavailable state. The fixture demo remains available before a real run
+is started.
 
 ## Session notes
 
@@ -155,7 +167,7 @@ showed a fixture toast, never called any API. Built both, plus two prerequisite 
   real Clerk session and a browser — verified as far as possible via direct query-chain testing and
   route-level smoke tests instead. The live Anthropic-API acceptance run noted in the previous
   session note is still outstanding (no `ANTHROPIC_API_KEY` configured here either) — the fixture-
-  mode gate fix in this session doesn't change that, it only fixes the *separate* bug that would
+  mode gate fix in this session doesn't change that, it only fixes the _separate_ bug that would
   have blocked a real (non-fixture) run even once a key is configured.
 - Next concrete task: get a real Clerk session + `ANTHROPIC_API_KEY` into a real browser to
   actually click through "sign in → add a website → New Run → watch the tracker" end to end, which

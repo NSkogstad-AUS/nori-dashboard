@@ -31,6 +31,24 @@ export async function createArtifact(input: CreateArtifactInput): Promise<Artifa
   return rowToCamelCase<Artifact>(row);
 }
 
+/** Returns an artifact only when its session belongs to the requested workspace. */
+export async function getArtifactForWorkspace(
+  workspaceId: string,
+  artifactId: string,
+): Promise<Artifact | null> {
+  const sql = getDb();
+  const [row] = await sql<Record<string, unknown>[]>`
+    select a.id, a.session_id, a.step_id, a.storage_key, a.content_type, a.width, a.height,
+      a.redacted, a.expires_at, a.created_at
+    from artifacts a
+    inner join persona_sessions ps on ps.id = a.session_id
+    inner join runs r on r.id = ps.run_id
+    where a.id = ${artifactId} and r.workspace_id = ${workspaceId}
+    limit 1
+  `;
+  return row ? rowToCamelCase<Artifact>(row) : null;
+}
+
 /**
  * Links an artifact to a step via the step_artifacts join table — a step's `artifactIds` (see
  * packages/db/src/queries/steps.ts's listStepsForSession) is populated from this join, not from

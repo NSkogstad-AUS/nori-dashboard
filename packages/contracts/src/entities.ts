@@ -125,6 +125,8 @@ export const stepSchema = z.object({
   urlAfter: z.string().url().nullable(),
   observation: z.string().max(2000).nullable(),
   artifactIds: z.array(z.string().uuid()).default([]),
+  cursorX: z.number().int().nonnegative().nullable(),
+  cursorY: z.number().int().nonnegative().nullable(),
   /** Which session state (see sessionStateSchema) was active when this step was recorded — lets
    *  a caller bucket a session's steps by stage (e.g. for a live progress view) without inferring
    *  it from step order. */

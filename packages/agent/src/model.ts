@@ -39,6 +39,8 @@ export interface PersonaActionModel {
 
 export class PersonaModelError extends Error {}
 
+const DECISION_NARRATIVE_MAX_LENGTH = 1000;
+
 const ACTION_TOOL = {
   name: 'browser_action',
   strict: true,
@@ -49,11 +51,11 @@ const ACTION_TOOL = {
     properties: {
       observation: {
         type: 'string',
-        maxLength: 1000,
+        maxLength: DECISION_NARRATIVE_MAX_LENGTH,
         description: 'A concise statement of what is visibly relevant to this decision.',
       },
       action: {
-        oneOf: [
+        anyOf: [
           {
             type: 'object',
             properties: { kind: { const: 'navigate' }, url: { type: 'string', format: 'uri' } },
@@ -70,7 +72,7 @@ const ACTION_TOOL = {
             type: 'object',
             properties: {
               kind: { const: 'scroll' },
-              deltaY: { type: 'integer', minimum: -2000, maximum: 2000 },
+              deltaY: { type: 'integer' },
             },
             required: ['kind', 'deltaY'],
             additionalProperties: false,
@@ -89,7 +91,7 @@ const ACTION_TOOL = {
             type: 'object',
             properties: {
               kind: { const: 'wait' },
-              milliseconds: { type: 'integer', minimum: 100, maximum: 3000 },
+              milliseconds: { type: 'integer' },
             },
             required: ['kind', 'milliseconds'],
             additionalProperties: false,
@@ -105,7 +107,11 @@ const ACTION_TOOL = {
             properties: {
               kind: { const: 'finish' },
               outcome: { enum: ['task_success', 'task_failure'] },
-              summary: { type: 'string', minLength: 1, maxLength: 1000 },
+              summary: {
+                type: 'string',
+                minLength: 1,
+                maxLength: DECISION_NARRATIVE_MAX_LENGTH,
+              },
             },
             required: ['kind', 'outcome', 'summary'],
             additionalProperties: false,
@@ -117,6 +123,29 @@ const ACTION_TOOL = {
     additionalProperties: false,
   },
 };
+
+function normalizeDecisionNarrative(input: unknown): unknown {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+
+  const decision = input as Record<string, unknown>;
+  const normalized: Record<string, unknown> = { ...decision };
+  if (typeof decision.observation === 'string') {
+    normalized.observation = decision.observation.slice(0, DECISION_NARRATIVE_MAX_LENGTH);
+  }
+
+  const action = decision.action;
+  if (action && typeof action === 'object' && !Array.isArray(action)) {
+    const actionRecord = action as Record<string, unknown>;
+    if (actionRecord.kind === 'finish' && typeof actionRecord.summary === 'string') {
+      normalized.action = {
+        ...actionRecord,
+        summary: actionRecord.summary.slice(0, DECISION_NARRATIVE_MAX_LENGTH),
+      };
+    }
+  }
+
+  return normalized;
+}
 
 function systemPrompt(persona: Persona): string {
   return `You are ${persona.name}, a synthetic usability-testing persona.
@@ -185,7 +214,8 @@ export class AnthropicActionModel implements PersonaActionModel {
         { signal: input.signal },
       );
     } catch (error) {
-      throw new PersonaModelError('Anthropic action selection failed', { cause: error });
+      const detail = error instanceof Error ? `: ${error.message}` : '';
+      throw new PersonaModelError(`Anthropic action selection failed${detail}`, { cause: error });
     }
 
     const toolUse = response.content.find(
@@ -194,7 +224,7 @@ export class AnthropicActionModel implements PersonaActionModel {
     if (!toolUse || toolUse.name !== ACTION_TOOL.name) {
       throw new PersonaModelError('Anthropic response did not contain browser_action tool use');
     }
-    const parsed = agentDecisionSchema.safeParse(toolUse.input);
+    const parsed = agentDecisionSchema.safeParse(normalizeDecisionNarrative(toolUse.input));
     if (!parsed.success) {
       throw new PersonaModelError(`Anthropic returned an invalid action: ${parsed.error.message}`);
     }

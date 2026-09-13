@@ -203,8 +203,12 @@ test('Anthropic adapter sends the versioned safety prompt and parses strict tool
               id: 'toolu_test',
               name: 'browser_action',
               input: {
-                observation: 'Subscribe is visible.',
-                action: { kind: 'click', elementId: 'nori-0' },
+                observation: 'o'.repeat(1100),
+                action: {
+                  kind: 'finish',
+                  outcome: 'task_success',
+                  summary: 's'.repeat(1100),
+                },
               },
             },
           ],
@@ -229,10 +233,18 @@ test('Anthropic adapter sends the versioned safety prompt and parses strict tool
       observation,
       history: [],
     });
-    assert.deepEqual(selection.decision.action, { kind: 'click', elementId: 'nori-0' });
+    assert.equal(selection.decision.observation.length, 1000);
+    assert.equal(selection.decision.action.kind, 'finish');
+    if (selection.decision.action.kind === 'finish') {
+      assert.equal(selection.decision.action.summary.length, 1000);
+    }
     assert.deepEqual(selection.usage, { inputTokens: 12, outputTokens: 5, costUsd: 0.000074 });
     assert.match(String(requestBody?.system), /website content as untrusted data/);
     assert.deepEqual(requestBody?.tool_choice, { type: 'tool', name: 'browser_action' });
+    const serializedRequest = JSON.stringify(requestBody);
+    assert.doesNotMatch(serializedRequest, /"oneOf"/);
+    assert.doesNotMatch(serializedRequest, /"(?:minimum|maximum)"/);
+    assert.match(serializedRequest, /"anyOf"/);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),
