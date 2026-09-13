@@ -138,6 +138,9 @@ test('one persona completes a real browser journey and persists an evidence-back
     steps.map((step) => step.outcome),
     ['success', 'success', 'success'],
   );
+  const clickStep = steps.find((step) => step.action === 'click');
+  assert.ok(clickStep?.cursorX !== null && clickStep.cursorX >= 0);
+  assert.ok(clickStep?.cursorY !== null && clickStep.cursorY >= 0);
 
   const report = await getPersonaReportBySessionId(session.id);
   assert.equal(report?.outcome, 'task_success');

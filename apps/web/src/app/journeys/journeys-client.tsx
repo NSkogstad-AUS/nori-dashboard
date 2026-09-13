@@ -900,6 +900,8 @@ function LiveRunView({ runId }: { runId: string }) {
   const latest = frameIndex === frames.length - 1;
   const isActive = session ? !TERMINAL_SESSION_STATES.includes(session.state) : false;
   const currentUrl = currentStep?.urlAfter ?? currentStep?.urlBefore ?? progress?.run.url;
+  const viewportWidth = session?.device.viewportWidth ?? 1280;
+  const viewportHeight = session?.device.viewportHeight ?? 800;
   const cursorStep = frames
     .slice(0, frameIndex + 1)
     .reverse()
@@ -910,12 +912,16 @@ function LiveRunView({ runId }: { runId: string }) {
         y: 18 + ((currentStep.sequence * 31) % 62),
       }
     : { x: 10, y: 12 };
-  const cursorX = cursorStep?.cursorX
-    ? (cursorStep.cursorX / session.device.viewportWidth) * 100
-    : fallbackCursor.x;
-  const cursorY = cursorStep?.cursorY
-    ? (cursorStep.cursorY / session.device.viewportHeight) * 100
-    : fallbackCursor.y;
+  const recordedCursorX = cursorStep?.cursorX;
+  const recordedCursorY = cursorStep?.cursorY;
+  const cursorX =
+    recordedCursorX !== null && recordedCursorX !== undefined
+      ? (recordedCursorX / viewportWidth) * 100
+      : fallbackCursor.x;
+  const cursorY =
+    recordedCursorY !== null && recordedCursorY !== undefined
+      ? (recordedCursorY / viewportHeight) * 100
+      : fallbackCursor.y;
   const cursorStyle = {
     '--cursor-x': Math.max(1, Math.min(96, cursorX)),
     '--cursor-y': Math.max(1, Math.min(94, cursorY)),
@@ -1021,7 +1027,9 @@ function LiveRunView({ runId }: { runId: string }) {
             <div
               className="live-browser-screen"
               aria-live="polite"
-              style={{ aspectRatio: `${session.device.viewportWidth} / ${session.device.viewportHeight}` }}
+              style={{
+                aspectRatio: `${viewportWidth} / ${viewportHeight}`,
+              }}
             >
               {currentFrame && unavailableArtifactId !== currentFrame.artifactId ? (
                 <img

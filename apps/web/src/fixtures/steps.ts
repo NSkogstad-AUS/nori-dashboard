@@ -19,7 +19,12 @@ const ACTIONS: Record<PersonaKey, [string, string, string, string]> = {
   alex: ['Lands on homepage', 'Compares plans', 'Looks for next step', 'Reaches workspace'],
   jamie: ['Opens pricing', 'Skims features', 'Creates an account', 'Finds first project'],
   sam: ['Reads the promise', 'Checks what’s included', 'Reviews the form', 'Opens the guide'],
-  riley: ['Tabs through navigation', 'Opens plan details', 'Completes the form', 'Finds keyboard focus'],
+  riley: [
+    'Tabs through navigation',
+    'Opens plan details',
+    'Completes the form',
+    'Finds keyboard focus',
+  ],
 };
 
 // action per stage: mostly 'navigate'; the sign-up/form-completion stage reads more naturally
