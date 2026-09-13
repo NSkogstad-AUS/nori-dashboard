@@ -170,14 +170,22 @@ async function installNavigationGuard(
   onBlocked: (blocked: BlockedRequest) => void,
 ): Promise<void> {
   await context.route('**/*', async (route: Route) => {
-    const url = route.request().url();
+    const request = route.request();
+    const url = request.url();
+    const isNavigationRequest = request.isNavigationRequest();
     const result = await checkNavigationTarget(url, navigationOptions);
     if (!result.allowed) {
-      onBlocked({ url, reason: result.reason ?? 'unsafe_target' });
+      // Third-party scripts, pixels, fonts, and images are denied at the network boundary, but
+      // they are not persona navigation attempts. Treating any denied subresource as fatal made
+      // otherwise successful page loads fail whenever a site included an external analytics or
+      // CDN request. Main-frame and popup navigations remain fatal and are surfaced as steps.
+      if (isNavigationRequest) {
+        onBlocked({ url, reason: result.reason ?? 'unsafe_target' });
+      }
       await route.abort('blockedbyclient');
       return;
     }
-    if (route.request().isNavigationRequest()) {
+    if (isNavigationRequest) {
       // Fetch one hop without following redirects. Playwright does not route redirect targets
       // consistently across engines, so inspecting Location before handing the response to the
       // page is the reliable network-boundary check. Keep this preflight bounded so a server
@@ -215,7 +223,6 @@ async function installNavigationGuard(
   await context.routeWebSocket(/.*/, async (socket: WebSocketRoute) => {
     const result = await checkWebSocketTarget(socket.url(), navigationOptions);
     if (!result.allowed) {
-      onBlocked({ url: socket.url(), reason: result.reason ?? 'unsafe_websocket_target' });
       await socket.close({ code: 1008, reason: 'Blocked by navigation policy' });
       return;
     }

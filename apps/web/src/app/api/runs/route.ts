@@ -14,6 +14,23 @@ function errorResponse(error: ApiError, status: number) {
   return NextResponse.json(error, { status });
 }
 
+function allowedOriginsForWebsite(origin: string): string[] {
+  const websiteUrl = new URL(origin);
+  const origins = new Set([websiteUrl.origin]);
+
+  // A site entered as www.example.com commonly serves its own assets from cdn.example.com.
+  // The worker already permits subdomains of each allowed origin, so adding the corresponding
+  // apex here lets those sibling asset hosts render while preserving scheme, port, DNS, and
+  // private-network checks. Only the conventional `www.` label is broadened this way.
+  if (websiteUrl.hostname.startsWith('www.')) {
+    const apexUrl = new URL(websiteUrl.origin);
+    apexUrl.hostname = websiteUrl.hostname.slice(4);
+    origins.add(apexUrl.origin);
+  }
+
+  return [...origins];
+}
+
 // Creates a real run: validates the request, verifies the target website belongs to the caller's
 // workspace, creates one persona_session per requested persona (1-3, per
 // createRunRequestSchema), and enqueues one job per session — the same sequence
@@ -56,7 +73,7 @@ export async function POST(request: NextRequest) {
       websiteId,
       url,
       task,
-      allowedOrigins: [new URL(website.origin).origin],
+      allowedOrigins: allowedOriginsForWebsite(website.origin),
       limits: runLimitsSchema.parse(limits ?? {}),
       idempotencyKey,
     });
@@ -82,7 +99,10 @@ export async function POST(request: NextRequest) {
     // generic 500, matching api/websites/route.ts's existing duplicate-handling pattern.
     if (error instanceof Error && 'code' in error && error.code === '23505') {
       return errorResponse(
-        { code: 'idempotency_conflict', message: 'A run with this idempotency key already exists.' },
+        {
+          code: 'idempotency_conflict',
+          message: 'A run with this idempotency key already exists.',
+        },
         409,
       );
     }

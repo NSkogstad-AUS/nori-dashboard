@@ -44,6 +44,17 @@ export const homePage = shell(
 `,
 );
 
+// A denied third-party subresource must not be mistaken for a failed persona navigation. The
+// browser guard aborts this image request, while the page and its usable subscribe flow remain.
+export const thirdPartyResourcePage = shell(
+  'Third-party resource',
+  `
+  <img src="http://127.0.0.1:9999/tracking-pixel.png" alt="" />
+  <h1>Weekly Newsletter</h1>
+  <button id="subscribe-btn" onclick="this.textContent = 'Subscribed'">Subscribe</button>
+`,
+);
+
 export const brokenLinksPage = shell(
   'Broken Links',
   `

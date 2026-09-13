@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import {
   getRunById,
+  getPersonaById,
   getPersonaReportBySessionId,
   listSessionsForRun,
   listStepsForSession,
@@ -30,11 +31,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const sessions = await listSessionsForRun(run.id);
     const sessionDetails = await Promise.all(
       sessions.map(async (session) => {
-        const [steps, report] = await Promise.all([
+        const [persona, steps, report] = await Promise.all([
+          getPersonaById(session.personaId),
           listStepsForSession(session.id),
           getPersonaReportBySessionId(session.id),
         ]);
-        return { session, steps, report };
+        if (!persona) throw new Error(`Persona not found for session ${session.id}`);
+        return { session, persona, steps, report };
       }),
     );
 

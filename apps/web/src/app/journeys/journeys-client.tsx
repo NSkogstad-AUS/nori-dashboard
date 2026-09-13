@@ -433,97 +433,181 @@ function PersonaShelfSection({
   );
 }
 
-function OverviewFlowArrow() {
+type ProcessStageStatus = 'complete' | 'active' | 'queued' | 'failed';
+
+interface ProcessStageView {
+  eyebrow: string;
+  title: string;
+  description: string;
+  checkpoints: readonly string[];
+  status: ProcessStageStatus;
+  completedCheckpointCount?: number;
+}
+
+const PROCESS_STAGE_COPY = [
+  {
+    eyebrow: '01 · Understand',
+    title: 'Context gathering',
+    description: 'The AI reads the brief, applies the persona, and prepares a safe browser.',
+    checkpoints: ['Load the persona and task', 'Check the target website', 'Prepare the browser'],
+  },
+  {
+    eyebrow: '02 · Explore',
+    title: 'Journey exploration',
+    description:
+      'The persona moves through the site and chooses each next step from what is visible.',
+    checkpoints: ['Read the current page', 'Choose a safe action', 'Record the outcome'],
+  },
+  {
+    eyebrow: '03 · Review',
+    title: 'Evidence review',
+    description:
+      'Captured steps and screenshots are checked for friction, dead ends, and uncertainty.',
+    checkpoints: ['Group the recorded steps', 'Identify points of friction', 'Check the evidence'],
+  },
+  {
+    eyebrow: '04 · Deliver',
+    title: 'Journey report',
+    description:
+      'The findings are turned into a clear account of what happened and what to improve.',
+    checkpoints: ['Summarise the outcome', 'Prioritise findings', 'Link the evidence'],
+  },
+] as const;
+
+function personaForId(id: string | null): Persona {
+  return personas.find((candidate) => candidate.id === id) ?? personas[0]!;
+}
+
+function PersonaProcessVisual({
+  persona,
+  status,
+  statusTone,
+}: {
+  persona: Persona;
+  status: string;
+  statusTone: 'active' | 'complete' | 'failed';
+}) {
   return (
-    <span className="overview-flow-arrow" aria-hidden="true">
-      <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
-        <path
-          d="M1 8h24m0 0-7-7m7 7-7 7"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
+    <aside className="process-persona" aria-label={`Selected persona: ${persona.name}`}>
+      <div className="process-persona-photo">
+        <img src={PERSONA_PHOTO_SRC[persona.name]} alt="" />
+        <span className={`process-persona-status is-${statusTone}`}>
+          <i aria-hidden="true" />
+          {status}
+        </span>
+      </div>
+      <div className="process-persona-copy">
+        <span>Selected perspective</span>
+        <h2>{persona.name}</h2>
+        <strong>{persona.goal}</strong>
+        <p>{persona.behavior}</p>
+      </div>
+    </aside>
   );
 }
 
-function OverviewAtlas() {
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
-  const [restHeight, setRestHeight] = useState<number | null>(null);
-  const firstCardRef = useRef<HTMLButtonElement>(null);
-
-  const toggleCard = (index: number) => {
-    setExpandedIndex((previous) => (previous === index ? null : index));
-  };
-
-  // Keeps --overview-card-rest-height (used by .overview-flow-arrow, see components.css) in
-  // sync with the first card's actual resting (16:9, un-expanded) rendered height, so the
-  // arrows center accurately on the small cards' top strip at any panel width — only measured
-  // while nothing is expanded, since that's the only state where the first card's own height
-  // equals every card's resting height.
-  useEffect(() => {
-    const card = firstCardRef.current;
-    if (!card || expandedIndex !== null) return;
-    const updateHeight = () => setRestHeight(card.getBoundingClientRect().height);
-    updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(card);
-    return () => observer.disconnect();
-  }, [expandedIndex]);
-
-  // Each card's grid column gets an `fr` share via --overview-card-N: the expanded card takes a
-  // larger share, its two siblings an equal smaller share, all three summing to a constant total
-  // so the row's overall width and center never shift — see .overview-flow's
-  // grid-template-columns in components.css.
-  const columnShare = (index: number) =>
-    `${expandedIndex === null ? 1 : expandedIndex === index ? 3 : 0.6}fr`;
-  const columnVars = {
-    '--overview-card-0': columnShare(0),
-    '--overview-card-1': columnShare(1),
-    '--overview-card-2': columnShare(2),
-    ...(restHeight ? { '--overview-card-rest-height': `${restHeight}px` } : {}),
-  } as React.CSSProperties;
+function ProcessBoard({
+  persona,
+  stages,
+  statusLabel,
+}: {
+  persona: Persona;
+  stages: ProcessStageView[];
+  statusLabel: string;
+}) {
+  const currentIndex = stages.findIndex(
+    (stage) => stage.status === 'active' || stage.status === 'failed',
+  );
+  const lastCompletedIndex = stages.reduce(
+    (lastIndex, stage, index) => (stage.status === 'complete' ? index : lastIndex),
+    0,
+  );
+  const activeIndex = currentIndex >= 0 ? currentIndex : lastCompletedIndex;
+  const statusTone = stages.some((stage) => stage.status === 'failed')
+    ? 'failed'
+    : stages.every((stage) => stage.status === 'complete')
+      ? 'complete'
+      : 'active';
+  const columnVars = Object.fromEntries(
+    stages.map((_, index) => [
+      `--process-card-${index}`,
+      `${index === activeIndex ? 2.25 : 0.88}fr`,
+    ]),
+  ) as React.CSSProperties;
 
   return (
-    <section className="map-panel">
-      <div className="overview-flow" style={columnVars}>
-        <button
-          ref={firstCardRef}
-          type="button"
-          className={`overview-flow-card${expandedIndex === 0 ? ' expanded' : ''}`}
-          aria-pressed={expandedIndex === 0}
-          onClick={() => toggleCard(0)}
-        />
-        <OverviewFlowArrow />
-        <button
-          type="button"
-          className={`overview-flow-card${expandedIndex === 1 ? ' expanded' : ''}`}
-          aria-pressed={expandedIndex === 1}
-          onClick={() => toggleCard(1)}
-        />
-        <OverviewFlowArrow />
-        <button
-          type="button"
-          className={`overview-flow-card${expandedIndex === 2 ? ' expanded' : ''}`}
-          aria-pressed={expandedIndex === 2}
-          onClick={() => toggleCard(2)}
-        />
+    <section className="map-panel process-board">
+      <header className="process-board-header">
+        <div>
+          <span className="process-kicker">AI journey progress</span>
+          <h2>Following {persona.name}&rsquo;s path</h2>
+        </div>
+        <span className={`process-board-status is-${statusTone}`}>
+          <i aria-hidden="true" />
+          {statusLabel}
+        </span>
+      </header>
+      <div className="process-board-layout">
+        <PersonaProcessVisual persona={persona} status={statusLabel} statusTone={statusTone} />
+        <div className="process-flow" style={columnVars}>
+          {stages.map((stage) => (
+            <article
+              key={stage.title}
+              className={`process-stage process-stage-${stage.status}`}
+              aria-current={stage.status === 'active' ? 'step' : undefined}
+            >
+              <div className="process-stage-topline">
+                <span>{stage.eyebrow}</span>
+                <i aria-label={stage.status} />
+              </div>
+              <div className="process-stage-copy">
+                <h3>{stage.title}</h3>
+                <p>{stage.description}</p>
+              </div>
+              <ul>
+                {stage.checkpoints.map((checkpoint, checkpointIndex) => {
+                  const completed =
+                    stage.status === 'complete' ||
+                    checkpointIndex < (stage.completedCheckpointCount ?? 0);
+                  return (
+                    <li
+                      key={`${checkpoint}-${checkpointIndex}`}
+                      className={
+                        completed ? 'is-complete' : stage.status === 'failed' ? 'is-failed' : ''
+                      }
+                    >
+                      <i aria-hidden="true" />
+                      <span>{checkpoint}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );
 }
 
-// The 3 working stages a persona session moves through with real step content — see
-// SESSION_STATES in packages/contracts/src/state-machines.ts. 'queued' has no step content yet
-// (nothing has started), and a terminal state (completed/failed/cancelled) is the run's outcome
-// rather than a 4th working stage, so it's shown as a status line instead of forcing a 4th card
-// into a grid (.overview-flow, packages/ui/src/styles/components.css) built for exactly 3.
+function OverviewAtlas() {
+  const { selectedPersonId } = useJourneyView();
+  const persona = personaForId(selectedPersonId);
+  const stages: ProcessStageView[] = PROCESS_STAGE_COPY.map((stage, index) => ({
+    ...stage,
+    status: index === 0 ? 'active' : 'queued',
+    completedCheckpointCount: 0,
+  }));
+
+  return <ProcessBoard persona={persona} stages={stages} statusLabel="Ready to begin" />;
+}
+
+// The persisted worker states map onto the first three visual phases. Terminal outcomes occupy
+// the report phase, which keeps the process understandable without exposing backend state names.
 const TRACKER_STAGES: { state: SessionState; label: string }[] = [
-  { state: 'starting', label: 'Getting ready' },
-  { state: 'exploring', label: 'Exploring the site' },
-  { state: 'analysing', label: 'Reviewing what happened' },
+  { state: 'starting', label: 'Context gathering' },
+  { state: 'exploring', label: 'Journey exploration' },
+  { state: 'analysing', label: 'Evidence review' },
 ];
 
 const STEP_ACTION_LABEL: Record<Step['action'], string> = {
@@ -558,7 +642,12 @@ function stepSummary(step: Step): string {
 
 interface RunProgressResponse {
   run: Run;
-  sessions: { session: PersonaSession; steps: Step[]; report: PersonaReport | null }[];
+  sessions: {
+    session: PersonaSession;
+    persona: Persona;
+    steps: Step[];
+    report: PersonaReport | null;
+  }[];
 }
 
 const TERMINAL_SESSION_STATES: readonly SessionState[] = ['completed', 'failed', 'cancelled'];
@@ -628,14 +717,67 @@ function LiveRunTracker({ runId }: { runId: string }) {
     );
   }
 
-  const { session, steps, report } = sessionDetail;
+  const { session, persona, steps, report } = sessionDetail;
   const isTerminal = TERMINAL_SESSION_STATES.includes(session.state);
   const activeStageIndex = TRACKER_STAGES.findIndex((stage) => stage.state === session.state);
+  const failed = session.state === 'failed';
+  const lastRecordedState = steps.at(-1)?.sessionState;
+  const lastRecordedStageIndex = TRACKER_STAGES.findIndex(
+    (stage) => stage.state === lastRecordedState,
+  );
+  const visualActiveIndex =
+    session.state === 'completed'
+      ? 3
+      : isTerminal
+        ? Math.max(lastRecordedStageIndex, 0)
+        : Math.max(activeStageIndex, 0);
+  const statusLabel = failed
+    ? 'Needs attention'
+    : session.state === 'completed'
+      ? 'Journey complete'
+      : session.state === 'cancelled'
+        ? 'Run cancelled'
+        : `Working on ${PROCESS_STAGE_COPY[visualActiveIndex]?.title.toLowerCase() ?? 'the journey'}`;
+
+  const stages: ProcessStageView[] = PROCESS_STAGE_COPY.map((stage, index) => {
+    const stageState = TRACKER_STAGES[index]?.state;
+    const stageSteps = stageState ? steps.filter((step) => step.sessionState === stageState) : [];
+    const recordedSteps = stageSteps.map(stepSummary);
+    let checkpoints = recordedSteps.length > 0 ? recordedSteps.slice(-4) : [...stage.checkpoints];
+
+    if (index === 3 && report) {
+      checkpoints = [report.summary, ...stage.checkpoints.slice(1)];
+    }
+    if (index === visualActiveIndex && failed) {
+      checkpoints = [
+        ...recordedSteps.slice(-2),
+        humanizeFailureMessage(session.failureMessage),
+        'Start a new run after checking the target URL',
+      ].slice(-4);
+    }
+
+    const status: ProcessStageStatus =
+      index < visualActiveIndex
+        ? 'complete'
+        : index > visualActiveIndex
+          ? 'queued'
+          : failed
+            ? 'failed'
+            : session.state === 'completed'
+              ? 'complete'
+              : 'active';
+
+    const completedCheckpointCount =
+      status === 'complete' ? checkpoints.length : status === 'active' ? recordedSteps.length : 0;
+
+    return { ...stage, checkpoints, status, completedCheckpointCount };
+  });
 
   return (
-    <section className="map-panel">
+    <section className="process-tracker-shell">
       {progress.sessions.length > 1 ? (
-        <div className="journey-tools" role="tablist" aria-label="Persona sessions">
+        <div className="process-session-tabs" role="tablist" aria-label="Persona sessions">
+          <span>Viewing perspective</span>
           <div>
             {progress.sessions.map(({ session: s }, index) => (
               <button
@@ -646,52 +788,32 @@ function LiveRunTracker({ runId }: { runId: string }) {
                 aria-pressed={index === selectedSessionIndex}
                 onClick={() => setSelectedSessionIndex(index)}
               >
-                Session {index + 1}
+                {progress.sessions[index]?.persona.name ?? `Persona ${index + 1}`}
               </button>
             ))}
           </div>
         </div>
       ) : null}
-      <p aria-live="polite" className="journey-tools">
-        {isTerminal
-          ? `Done — ${session.state}${report ? `: ${report.summary}` : ''}`
-          : `In progress — ${TRACKER_STAGES[Math.max(activeStageIndex, 0)]?.label ?? 'Getting ready'}`}
-      </p>
-      <div className="overview-flow">
-        {TRACKER_STAGES.map((stage, index) => {
-          const stageSteps = steps.filter((step) => step.sessionState === stage.state);
-          const isPast = activeStageIndex > index || isTerminal;
-          const isActive = activeStageIndex === index && !isTerminal;
-          const expanded = isActive || (isTerminal && index === TRACKER_STAGES.length - 1);
-          return (
-            <div key={stage.state} style={{ display: 'contents' }}>
-              {index > 0 ? <OverviewFlowArrow /> : null}
-              <button
-                type="button"
-                className={`overview-flow-card${expanded ? ' expanded' : ''}`}
-                aria-pressed={expanded}
-                aria-current={isActive ? 'step' : undefined}
-                disabled={!isPast && !isActive}
-              >
-                <div className="overview-flow-card-content">
-                  <strong>{stage.label}</strong>
-                  {stageSteps.length > 0 ? (
-                    <ul aria-live={isActive ? 'polite' : undefined}>
-                      {stageSteps.map((step) => (
-                        <li key={step.id}>{stepSummary(step)}</li>
-                      ))}
-                    </ul>
-                  ) : isActive ? (
-                    <p>Working…</p>
-                  ) : null}
-                </div>
-              </button>
-            </div>
-          );
-        })}
+      <div aria-live="polite">
+        <ProcessBoard persona={persona} stages={stages} statusLabel={statusLabel} />
       </div>
     </section>
   );
+}
+
+function humanizeFailureMessage(message: string | null): string {
+  if (!message) return 'The browser could not finish this journey';
+  const originMatch = message.match(/origin_not_allowlisted:(https?:\/\/[^\s]+)/);
+  if (originMatch?.[1]) {
+    try {
+      return `Navigation to ${new URL(originMatch[1]).hostname} was kept outside this run`;
+    } catch {
+      return 'A navigation outside the selected website was blocked';
+    }
+  }
+  if (message.includes('authentication')) return 'The model connection needs to be checked';
+  if (message.includes('timed_out')) return 'The journey reached its time limit';
+  return message.replace(/^unsafe_target:/, '').replaceAll('_', ' ');
 }
 
 interface LiveViewProps {

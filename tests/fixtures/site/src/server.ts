@@ -6,6 +6,7 @@ import {
   confusingCtaPage,
   focusTrapPage,
   errorPage,
+  thirdPartyResourcePage,
   unclickablePage,
 } from './pages.js';
 
@@ -47,6 +48,9 @@ const server = createServer((req, res) => {
         return;
       case '/unclickable':
         respondHtml(res, 200, unclickablePage);
+        return;
+      case '/third-party-resource':
+        respondHtml(res, 200, thirdPartyResourcePage);
         return;
       case '/error':
         respondHtml(res, 500, errorPage);
