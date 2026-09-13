@@ -9,6 +9,10 @@ export interface JourneyViewSwitchProps {
   onBeginRun?: () => void;
   /** Replaces and disables the action while a run is active. */
   beginRunRunning?: boolean;
+  /** Requests cancellation of the active run. */
+  onCancelRun?: () => void;
+  /** Disables the cancellation action while the request is being processed. */
+  cancelRunPending?: boolean;
   /** Current journey status, displayed in the center of the control bar. */
   statusLabel?: string;
 }
@@ -18,6 +22,8 @@ export function JourneyViewSwitch({
   onChange,
   onBeginRun,
   beginRunRunning = false,
+  onCancelRun,
+  cancelRunPending = false,
   statusLabel = 'Ready to begin',
 }: JourneyViewSwitchProps) {
   return (
@@ -48,12 +54,12 @@ export function JourneyViewSwitch({
       {onBeginRun ? (
         <button
           type="button"
-          className="pill begin-run"
-          onClick={onBeginRun}
-          disabled={beginRunRunning}
+          className={`pill begin-run${beginRunRunning && onCancelRun ? ' cancel-run' : ''}`}
+          onClick={beginRunRunning && onCancelRun ? onCancelRun : onBeginRun}
+          disabled={beginRunRunning ? !onCancelRun || cancelRunPending : false}
         >
           {beginRunRunning ? (
-            'Running…'
+            onCancelRun ? (cancelRunPending ? 'Cancelling…' : 'Cancel run') : 'Running…'
           ) : (
             <>
               <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14">

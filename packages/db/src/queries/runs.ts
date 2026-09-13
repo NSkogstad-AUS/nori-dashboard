@@ -104,6 +104,47 @@ export async function updateRunCancellationState(
 }
 
 /**
+ * Immediately finalises cancellation for a workspace-owned run and every unfinished child row.
+ * The worker also observes cancel_request_state='cancelled', so an in-flight browser is stopped
+ * at its next watchdog tick even though the UI-visible database state changes atomically here.
+ */
+export async function cancelRunImmediately(
+  workspaceId: string,
+  runId: string,
+): Promise<'cancelled' | 'not_found' | 'terminal'> {
+  const sql = getDb();
+  return sql.begin(async (transaction) => {
+    const [row] = await transaction<{ state: RunState }[]>`
+      select state from runs
+      where workspace_id = ${workspaceId} and id = ${runId}
+      for update
+    `;
+    if (!row) return 'not_found';
+    if (['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(row.state)) {
+      return 'terminal';
+    }
+
+    await transaction`
+      update runs
+      set state = 'cancelled', cancel_request_state = 'cancelled', updated_at = now()
+      where workspace_id = ${workspaceId} and id = ${runId}
+    `;
+    await transaction`
+      update persona_sessions
+      set state = 'cancelled', updated_at = now()
+      where run_id = ${runId} and state not in ('completed', 'failed', 'cancelled')
+    `;
+    await transaction`
+      update jobs
+      set status = 'cancelled', leased_until = null,
+          last_error = 'run cancelled by user', updated_at = now()
+      where run_id = ${runId} and status in ('pending', 'leased')
+    `;
+    return 'cancelled';
+  });
+}
+
+/**
  * Validates the transition against packages/contracts' RUN_TRANSITIONS before writing it —
  * throws rather than silently persisting an invalid state change.
  */

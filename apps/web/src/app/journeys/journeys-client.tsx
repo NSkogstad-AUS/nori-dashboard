@@ -140,9 +140,13 @@ function JourneysContent() {
     () => new Set(personas.map((persona) => persona.id)),
   );
   const [runPending, setRunPending] = useState(false);
+  const [cancelPending, setCancelPending] = useState(false);
+  const [cancelledRunId, setCancelledRunId] = useState<string | null>(null);
   const { progress: runProgress, error: runProgressError } = useRunProgress(runId);
+  const locallyCancelled = Boolean(runId && cancelledRunId === runId);
   const runRunning =
-    runPending ||
+    !locallyCancelled &&
+    (runPending ||
     Boolean(
       runId &&
         !runProgressError &&
@@ -150,9 +154,15 @@ function JourneysContent() {
           !['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(
             runProgress.run.state,
           )),
-    );
-  const runStatusLabel = runRunning
-    ? 'Running…'
+    ));
+  const cancellationRequested =
+    cancelPending || runProgress?.run.cancelRequestState === 'cancel_requested';
+  const runStatusLabel = locallyCancelled
+    ? 'Run cancelled'
+    : cancellationRequested
+      ? 'Cancelling…'
+      : runRunning
+        ? 'Running…'
     : runProgress?.run.state === 'completed'
       ? 'Journey complete'
       : runProgress?.run.state === 'completed_with_errors'
@@ -166,6 +176,15 @@ function JourneysContent() {
   useEffect(() => {
     if (!selectedPersonId) setSelectedPersonId(personas[0]?.id ?? null);
   }, [selectedPersonId, setSelectedPersonId]);
+
+  useEffect(() => {
+    if (
+      runProgress &&
+      ['completed', 'completed_with_errors', 'failed', 'cancelled'].includes(runProgress.run.state)
+    ) {
+      setCancelPending(false);
+    }
+  }, [runProgress]);
 
   const toggleAttached = (id: string) => {
     const next = new Set(attachedPersonaIds);
@@ -271,6 +290,27 @@ function JourneysContent() {
     }
   }, [websiteUrl, selectedPersonId, websites, addWebsite, openNewRun, setPlaying, setMode, router]);
 
+  const cancelRun = useCallback(async () => {
+    if (!runId || cancelPending) return;
+    setCancelPending(true);
+    try {
+      const response = await fetch(`/api/runs/${runId}/cancel`, { method: 'POST' });
+      if (!response.ok) {
+        const error: { message?: string } = await response.json().catch(() => ({}));
+        announce(error.message ?? 'Could not cancel the run.');
+        setCancelPending(false);
+        return;
+      }
+      setCancelledRunId(runId);
+      setCancelPending(false);
+      announce('Run cancelled.');
+    } catch (error) {
+      console.error('Failed to cancel run', error);
+      announce('Could not cancel the run.');
+      setCancelPending(false);
+    }
+  }, [runId, cancelPending]);
+
   return (
     <>
       {/* Three full-height scroll-snap steps — website URL, persona shelf, journey experience.
@@ -319,6 +359,8 @@ function JourneysContent() {
             onChange={setMode}
             onBeginRun={() => void beginRun()}
             beginRunRunning={runRunning}
+            onCancelRun={runId && runRunning ? () => void cancelRun() : undefined}
+            cancelRunPending={cancellationRequested}
             statusLabel={runStatusLabel}
           />
           {mode === 'live' ? (
@@ -464,7 +506,7 @@ function PersonaShelfSection({
   );
 }
 
-type ProcessStageStatus = 'complete' | 'active' | 'queued' | 'failed';
+type ProcessStageStatus = 'complete' | 'active' | 'queued' | 'failed' | 'cancelled';
 
 interface ProcessStageView {
   eyebrow: string;
@@ -532,12 +574,15 @@ function PersonaProcessVisual({
 function ProcessBoard({
   persona,
   stages,
+  cancelled = false,
 }: {
   persona: Persona;
   stages: ProcessStageView[];
+  cancelled?: boolean;
 }) {
   const currentIndex = stages.findIndex(
-    (stage) => stage.status === 'active' || stage.status === 'failed',
+    (stage) =>
+      stage.status === 'active' || stage.status === 'failed' || stage.status === 'cancelled',
   );
   const lastCompletedIndex = stages.reduce(
     (lastIndex, stage, index) => (stage.status === 'complete' ? index : lastIndex),
@@ -559,6 +604,13 @@ function ProcessBoard({
           <h2>Following {persona.name}&rsquo;s path</h2>
         </div>
       </header>
+      {cancelled ? (
+        <div className="process-cancelled-notice" role="status">
+          <i aria-hidden="true">×</i>
+          <strong>Run cancelled</strong>
+          <span>The journey stopped before completion.</span>
+        </div>
+      ) : null}
       <div className="process-board-layout">
         <PersonaProcessVisual persona={persona} />
         <div className="process-flow" style={columnVars}>
@@ -794,9 +846,11 @@ function LiveRunTracker({
           ? 'queued'
           : failed
             ? 'failed'
-            : session.state === 'completed'
-              ? 'complete'
-              : 'active';
+            : session.state === 'cancelled'
+              ? 'cancelled'
+              : session.state === 'completed'
+                ? 'complete'
+                : 'active';
 
     const completedCheckpointCount =
       status === 'complete' ? checkpoints.length : status === 'active' ? recordedSteps.length : 0;
@@ -826,7 +880,11 @@ function LiveRunTracker({
         </div>
       ) : null}
       <div aria-live="polite">
-        <ProcessBoard persona={persona} stages={stages} />
+        <ProcessBoard
+          persona={persona}
+          stages={stages}
+          cancelled={session.state === 'cancelled'}
+        />
       </div>
     </section>
   );

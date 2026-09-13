@@ -205,7 +205,7 @@ export async function processJob(
         lastHeartbeatAt = Date.now();
       },
       isCancellationRequested: async () =>
-        (await getRunCancellationState(run.id)) === 'cancel_requested',
+        (await getRunCancellationState(run.id)) !== 'none',
     };
 
     if (model) {
@@ -248,7 +248,8 @@ export async function processJob(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[worker] job ${job.id} failed: ${message}`);
-    if (error instanceof SessionCancelledError) {
+    const cancellationState = await getRunCancellationState(run.id);
+    if (error instanceof SessionCancelledError || cancellationState !== 'none') {
       const latestSession = await getPersonaSessionById(session.id);
       if (latestSession && latestSession.state !== 'cancelled') {
         await updateSessionState(session.id, latestSession.state, 'cancelled');
@@ -257,7 +258,7 @@ export async function processJob(
       if (latestRun && latestRun.state !== 'cancelled') {
         await updateRunState(run.id, latestRun.state, 'cancelled');
       }
-      if ((await getRunCancellationState(run.id)) === 'cancel_requested') {
+      if (cancellationState === 'cancel_requested') {
         await updateRunCancellationState(run.id, 'cancel_requested', 'cancelled');
       }
       await cancelJob(job.id, message);
