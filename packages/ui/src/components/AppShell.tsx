@@ -8,7 +8,7 @@ export interface AppShellProps {
   collapsed: boolean;
   sidebar: ReactNode;
   header: ReactNode;
-  floatingDock: ReactNode;
+  floatingDock?: ReactNode;
   children: ReactNode;
 }
 

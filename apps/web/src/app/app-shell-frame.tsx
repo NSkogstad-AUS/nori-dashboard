@@ -13,7 +13,6 @@ import {
   AppShell,
   Sidebar,
   PageHeader,
-  FloatingDock,
   NewRunDialog,
   type NewRunSubmission,
   type SidebarNavItem,
@@ -60,7 +59,7 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { websites, selectedWebsiteId, setSelectedWebsiteId, collapsed, setCollapsed } =
     useWorkspace();
-  const { open: newRunOpen, openDialog: openNewRun, closeDialog: closeNewRun } = useNewRunDialog();
+  const { open: newRunOpen, closeDialog: closeNewRun } = useNewRunDialog();
 
   const activeWebsite = websites.find((site) => site.id === selectedWebsiteId) ?? websites[0];
 
@@ -178,13 +177,6 @@ export function AppShellFrame({ children }: { children: ReactNode }) {
             title={title}
             showHeading={pathname !== '/journeys'}
             note="The whole experience, connected."
-          />
-        }
-        floatingDock={
-          <FloatingDock
-            onOpenJourneys={() => router.push('/journeys')}
-            onOpenRuns={() => router.push('/runs')}
-            onNewRun={openNewRun}
           />
         }
       >
