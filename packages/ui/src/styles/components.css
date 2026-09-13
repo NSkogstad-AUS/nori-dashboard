@@ -3634,14 +3634,31 @@ form > .pill {
 }
 
 .journey-summary-report {
-  width: 90%;
+  width: 70%;
+  height: 100%;
+  min-height: 0;
   margin: 0 auto;
   padding: 34px;
-  scroll-margin-top: 20px;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: #f7f5f0;
   color: var(--ink);
+}
+
+.journey-summary-report::-webkit-scrollbar {
+  width: 8px;
+}
+
+.journey-summary-report::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  background-clip: padding-box;
 }
 
 .journey-summary-step {
@@ -3649,6 +3666,7 @@ form > .pill {
   /* Summary content can exceed one snap viewport. Start it at the top so its own scrollbar
      never opens with the heading clipped above a vertically centred flex child. */
   justify-content: flex-start;
+  overflow: hidden;
   padding: 36px 0 44px;
   background: #fff;
 }
@@ -3658,20 +3676,31 @@ form > .pill {
 }
 
 .journey-summary-step > .journey-summary-report {
-  flex: 0 0 auto;
-  width: 90%;
+  flex: 1 1 auto;
+  width: 70%;
 }
 
 .journey-summary-report:focus {
   outline: none;
 }
 
-.journey-summary-header > span {
+.journey-summary-toolbar > span {
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.journey-summary-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.journey-summary-toolbar .journey-history-select select {
+  width: min(260px, 24vw);
 }
 
 .journey-summary-header > div {
@@ -3860,6 +3889,20 @@ form > .pill {
   .journey-summary-report {
     margin: 0 auto;
     padding: 20px;
+  }
+
+  .journey-summary-step > .journey-summary-report {
+    width: 92%;
+  }
+
+  .journey-summary-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .journey-summary-toolbar .journey-history-select,
+  .journey-summary-toolbar .journey-history-select select {
+    width: 100%;
   }
 
   .journey-summary-header > div {

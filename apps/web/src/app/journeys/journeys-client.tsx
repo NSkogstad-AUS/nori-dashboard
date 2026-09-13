@@ -204,10 +204,10 @@ function JourneysContent() {
   useEffect(() => setLocalRuns(readLocalRuns()), [runId]);
 
   useEffect(() => {
-    setSummaryVisible(false);
+    setSummaryVisible(searchParams.get('from') === 'summary');
     setFinishedManually(false);
     setFinishError(null);
-  }, [runId]);
+  }, [runId, searchParams]);
 
   const scrollToSummary = useCallback(() => {
     const container = journeyStepsRef.current;
@@ -219,7 +219,7 @@ function JourneysContent() {
     const containerTop = container.getBoundingClientRect().top;
     const summaryTop = summary.getBoundingClientRect().top;
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    summary.scrollTop = 0;
+    summary.querySelector<HTMLElement>('.journey-summary-report')?.scrollTo({ top: 0 });
     container.scrollTo({
       top: container.scrollTop + summaryTop - containerTop,
       behavior: prefersReducedMotion ? 'auto' : 'smooth',
@@ -238,7 +238,7 @@ function JourneysContent() {
       window.cancelAnimationFrame(firstFrame);
       if (secondFrame) window.cancelAnimationFrame(secondFrame);
     };
-  }, [summaryVisible, scrollToSummary]);
+  }, [summaryVisible, runProgress?.run.id, scrollToSummary]);
 
   useEffect(() => {
     const source = searchParams.get('from');
@@ -517,15 +517,9 @@ function JourneysContent() {
             onCancelRun={runId && runRunning ? () => void cancelRun() : undefined}
             cancelRunPending={cancellationRequested}
             statusLabel={runStatusLabel}
-            historyItems={historyItems}
-            activeHistoryId={runId}
-            onSelectHistory={(selectedRunId) => {
-              if (!selectedRunId) return;
-              router.push(`/journeys?runId=${selectedRunId}&from=history#journey-results`);
-            }}
             onFinishJourney={runId && runProgress ? () => void finishJourney() : undefined}
             finishJourneyPending={finishPending}
-            summaryVisible={summaryVisible}
+            summaryVisible={summaryVisible || Boolean(runProgress && !runRunning)}
           />
           {mode === 'live' ? (
             runId ? (
@@ -546,14 +540,24 @@ function JourneysContent() {
             <OverviewAtlas />
           )}
         </div>
-        {summaryVisible && runProgress ? (
+        {runProgress ? (
           <div
             ref={summaryRef}
             id="journey-summary"
             className="journey-step journey-summary-step"
             tabIndex={-1}
           >
-            <JourneySummarySection progress={runProgress} finishedManually={finishedManually} />
+            <JourneySummarySection
+              progress={runProgress}
+              finishedManually={finishedManually}
+              historyItems={historyItems}
+              activeHistoryId={runId}
+              onSelectHistory={(selectedRunId) => {
+                if (!selectedRunId || selectedRunId === runId) return;
+                setSummaryVisible(true);
+                router.push(`/journeys?runId=${selectedRunId}&from=summary#journey-summary`);
+              }}
+            />
           </div>
         ) : null}
       </div>
@@ -1551,9 +1555,15 @@ function LiveRunView({
 function JourneySummarySection({
   progress,
   finishedManually,
+  historyItems,
+  activeHistoryId,
+  onSelectHistory,
 }: {
   progress: RunProgressResponse;
   finishedManually: boolean;
+  historyItems: { id: string; label: string }[];
+  activeHistoryId: string | null;
+  onSelectHistory: (id: string) => void;
 }) {
   const sessionDetail = progress.sessions[0];
   if (!sessionDetail) {
@@ -1588,7 +1598,25 @@ function JourneySummarySection({
   return (
     <section className="journey-summary-report" aria-labelledby="journey-summary-title">
       <header className="journey-summary-header">
-        <span>Journey summary</span>
+        <div className="journey-summary-toolbar">
+          <span>Journey summary</span>
+          {historyItems.length > 0 ? (
+            <label className="journey-history-select">
+              <span className="sr-only">Open a previous journey</span>
+              <select
+                value={activeHistoryId ?? ''}
+                onChange={(event) => onSelectHistory(event.target.value)}
+              >
+                <option value="">Journey history</option>
+                {historyItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+        </div>
         <div>
           <h2 id="journey-summary-title">What {persona.name} experienced</h2>
           <p>
